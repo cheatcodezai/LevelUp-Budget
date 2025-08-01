@@ -36,6 +36,11 @@ class CloudKitManager: ObservableObject {
     private init() {
         // Initialize without immediately checking CloudKit to prevent crashes
         print("🔧 CloudKitManager initialized")
+        
+        // Delay the CloudKit availability check to prevent startup crashes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            self.checkCloudKitAvailability()
+        }
     }
     
     // MARK: - CloudKit Availability Check
@@ -50,13 +55,27 @@ class CloudKitManager: ObservableObject {
             return
         }
         
-        // Safely check CloudKit availability
+        // Safely check CloudKit availability with timeout
+        let timeoutTask = DispatchWorkItem {
+            DispatchQueue.main.async {
+                if !self.isCloudKitAvailable {
+                    print("⚠️ CloudKit availability check timed out")
+                    self.syncError = "iCloud connection timed out. Please check your internet connection."
+                }
+            }
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0, execute: timeoutTask)
+        
         container.accountStatus { [weak self] accountStatus, error in
+            // Cancel timeout if we get a response
+            timeoutTask.cancel()
+            
             DispatchQueue.main.async {
                 if let error = error {
                     print("❌ CloudKit error: \(error.localizedDescription)")
                     self?.isCloudKitAvailable = false
-                    self?.syncError = "CloudKit error: \(error.localizedDescription)"
+                    self?.syncError = "iCloud connection error. Please check your internet connection."
                     return
                 }
                 

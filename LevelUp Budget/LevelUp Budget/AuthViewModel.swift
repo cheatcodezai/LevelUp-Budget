@@ -30,19 +30,25 @@ class AuthViewModel: ObservableObject {
     }
     
     private func setupAuthStateListener() {
-        _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
-            Task { @MainActor in
-                if let user = user {
-                    self?.currentUser = User(
-                        id: user.uid,
-                        email: user.email,
-                        name: user.displayName,
-                        authProvider: .email // Default for macOS
-                    )
-                } else {
-                    self?.currentUser = nil
+        // Add error handling for Firebase Auth initialization
+        do {
+            _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+                Task { @MainActor in
+                    if let user = user {
+                        self?.currentUser = User(
+                            id: user.uid,
+                            email: user.email,
+                            name: user.displayName,
+                            authProvider: .email // Default for macOS
+                        )
+                    } else {
+                        self?.currentUser = nil
+                    }
                 }
             }
+        } catch {
+            print("❌ Firebase Auth initialization error: \(error.localizedDescription)")
+            // Don't show error to user for initialization issues
         }
     }
     
@@ -66,7 +72,9 @@ class AuthViewModel: ObservableObject {
             
         } catch {
             await MainActor.run {
-                self.errorMessage = error.localizedDescription
+                // Provide more user-friendly error messages
+                let errorMessage = self.getUserFriendlyErrorMessage(error)
+                self.errorMessage = errorMessage
                 self.showError = true
                 self.isLoading = false
             }
@@ -96,7 +104,9 @@ class AuthViewModel: ObservableObject {
             
         } catch {
             await MainActor.run {
-                self.errorMessage = error.localizedDescription
+                // Provide more user-friendly error messages
+                let errorMessage = self.getUserFriendlyErrorMessage(error)
+                self.errorMessage = errorMessage
                 self.showError = true
                 self.isLoading = false
             }
@@ -328,6 +338,36 @@ class AuthViewModel: ObservableObject {
     func clearError() {
         errorMessage = nil
         showError = false
+    }
+    
+    // MARK: - Helper Methods
+    private func getUserFriendlyErrorMessage(_ error: Error) -> String {
+        // Handle Firebase Auth errors properly
+        if let authError = error as? AuthErrorCode {
+            switch authError.code {
+            case .networkError:
+                return "Network error. Please check your internet connection and try again."
+            case .userNotFound:
+                return "Account not found. Please check your email and password."
+            case .wrongPassword:
+                return "Incorrect password. Please try again."
+            case .invalidEmail:
+                return "Invalid email address. Please enter a valid email."
+            case .weakPassword:
+                return "Password is too weak. Please choose a stronger password."
+            case .emailAlreadyInUse:
+                return "An account with this email already exists."
+            case .tooManyRequests:
+                return "Too many failed attempts. Please try again later."
+            case .userDisabled:
+                return "This account has been disabled. Please contact support."
+            default:
+                return "An error occurred. Please try again."
+            }
+        } else {
+            // Fallback for other types of errors
+            return error.localizedDescription
+        }
     }
 }
 

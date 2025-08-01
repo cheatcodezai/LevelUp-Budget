@@ -1,4 +1,0 @@
-module GoogleSignIn {
-umbrella header "/Volumes/CheatCodez HD/XCODE/LevelUp Budget/LevelUp Budget/DerivedData/SourcePackages/checkouts/GoogleSignIn-iOS/GoogleSignIn/Sources/Public/GoogleSignIn/GoogleSignIn.h"
-export *
-}

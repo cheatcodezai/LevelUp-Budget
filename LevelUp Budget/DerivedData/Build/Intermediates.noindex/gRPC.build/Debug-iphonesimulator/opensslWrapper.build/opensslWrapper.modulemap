@@ -1,4 +1,0 @@
-module opensslWrapper {
-umbrella "/Volumes/CheatCodez HD/XCODE/LevelUp Budget/LevelUp Budget/DerivedData/SourcePackages/checkouts/grpc-binary/openssl-grpc-Wrapper/include"
-export *
-}

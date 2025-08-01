@@ -1,4 +1,0 @@
-module AppAuthCore {
-umbrella "/Volumes/CheatCodez HD/XCODE/LevelUp Budget/LevelUp Budget/DerivedData/SourcePackages/checkouts/AppAuth-iOS/Sources/AppAuthCore"
-export *
-}

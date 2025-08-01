@@ -1,0 +1,17 @@
+# Ignore build files and derived data
+DerivedData/
+*.xcuserstate
+*.xcworkspace
+*.xcodeproj/project.xcworkspace/
+*.xcodeproj/xcuserdata/
+
+# Ignore Firebase & large SDKs
+LevelUp Budget/DerivedData/
+LevelUp Budget/SourcePackages/
+Pods/
+.build/
+build/
+*.db
+
+# Ignore miscellaneous
+.DS_Store

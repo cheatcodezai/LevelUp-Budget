@@ -1,4 +1,0 @@
-module grpcWrapper {
-umbrella "/Volumes/CheatCodez HD/XCODE/LevelUp Budget/LevelUp Budget/DerivedData/SourcePackages/checkouts/grpc-binary/grpc-Wrapper/include"
-export *
-}

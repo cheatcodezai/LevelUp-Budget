@@ -1,2 +1,0 @@
-Target dependency graph (1 target)
-Target 'LevelUp Budget' in project 'LevelUp Budget' (no dependencies)

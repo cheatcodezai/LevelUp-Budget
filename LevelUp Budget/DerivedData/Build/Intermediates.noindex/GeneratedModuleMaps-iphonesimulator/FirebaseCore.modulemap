@@ -1,4 +1,0 @@
-module FirebaseCore {
-umbrella header "/Volumes/CheatCodez HD/XCODE/LevelUp Budget/LevelUp Budget/DerivedData/SourcePackages/checkouts/firebase-ios-sdk/FirebaseCore/Sources/Public/FirebaseCore/FirebaseCore.h"
-export *
-}
