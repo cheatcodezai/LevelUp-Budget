@@ -1,0 +1,80 @@
+{
+  "source": "/Volumes/CheatCodez HD/XCODE/LevelUp Budget/LevelUp Budget/LevelUp Budget/BillsListView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 66
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add new bill",
+        "location": {
+          "startingColumn": 37,
+          "startingLine": 75
+        }
+      },
+      {
+        "comment": "",
+        "key": "BUDGET",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 156
+        }
+      },
+      {
+        "comment": "",
+        "key": "LEVEL",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 147
+        }
+      },
+      {
+        "comment": "",
+        "key": "UP",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 151
+        }
+      },
+      {
+        "comment": "",
+        "key": "Search bills...",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 189
+        }
+      },
+      {
+        "comment": "",
+        "key": "$%@",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 320
+        }
+      },
+      {
+        "comment": "",
+        "key": "No bills found",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 367
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add your first bill to get started",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 371
+        }
+      }
+    ]
+  },
+  "version": 1
+}

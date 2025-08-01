@@ -1,0 +1,128 @@
+{
+  "source": "/Volumes/CheatCodez HD/XCODE/LevelUp Budget/LevelUp Budget/LevelUp Budget/BillFormView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Edit Bill",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 379
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add Bill",
+        "location": {
+          "startingColumn": 52,
+          "startingLine": 379
+        }
+      },
+      {
+        "comment": "",
+        "key": "Enter bill title",
+        "location": {
+          "startingColumn": 47,
+          "startingLine": 166
+        }
+      },
+      {
+        "comment": "",
+        "key": "$",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 180
+        }
+      },
+      {
+        "comment": "",
+        "key": "0.00",
+        "location": {
+          "startingColumn": 51,
+          "startingLine": 184
+        }
+      },
+      {
+        "comment": "",
+        "key": "Category",
+        "location": {
+          "startingColumn": 44,
+          "startingLine": 201
+        }
+      },
+      {
+        "comment": "",
+        "key": "Due Date",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 221
+        }
+      },
+      {
+        "comment": "",
+        "key": "Repeat Frequency",
+        "location": {
+          "startingColumn": 52,
+          "startingLine": 250
+        }
+      },
+      {
+        "comment": "",
+        "key": "End Date",
+        "location": {
+          "startingColumn": 64,
+          "startingLine": 285
+        }
+      },
+      {
+        "comment": "",
+        "key": "No end date",
+        "location": {
+          "startingColumn": 58,
+          "startingLine": 272
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 60,
+          "startingLine": 278
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add notes (optional)",
+        "location": {
+          "startingColumn": 47,
+          "startingLine": 347
+        }
+      },
+      {
+        "comment": "",
+        "key": "Save changes",
+        "location": {
+          "startingColumn": 61,
+          "startingLine": 364
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add bill",
+        "location": {
+          "startingColumn": 78,
+          "startingLine": 364
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 371
+        }
+      }
+    ]
+  },
+  "version": 1
+}

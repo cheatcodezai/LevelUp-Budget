@@ -1,0 +1,136 @@
+{
+  "source": "/Volumes/CheatCodez HD/XCODE/LevelUp Budget/LevelUp Budget/LevelUp Budget/BillDetailView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Bill Details",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 190
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete Bill",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 194
+        }
+      },
+      {
+        "comment": "",
+        "key": "$%@",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 52
+        }
+      },
+      {
+        "comment": "",
+        "key": "PAID",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 58
+        }
+      },
+      {
+        "comment": "",
+        "key": "Details",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 95
+        }
+      },
+      {
+        "comment": "",
+        "key": "Edit bill",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 140
+        }
+      },
+      {
+        "comment": "",
+        "key": "Mark as unpaid",
+        "location": {
+          "startingColumn": 63,
+          "startingLine": 158
+        }
+      },
+      {
+        "comment": "",
+        "key": "Mark as paid",
+        "location": {
+          "startingColumn": 82,
+          "startingLine": 158
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete bill",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 176
+        }
+      },
+      {
+        "comment": "",
+        "key": "Edit Bill",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 128
+        }
+      },
+      {
+        "comment": "",
+        "key": "Mark as Unpaid",
+        "location": {
+          "startingColumn": 56,
+          "startingLine": 146
+        }
+      },
+      {
+        "comment": "",
+        "key": "Mark as Paid",
+        "location": {
+          "startingColumn": 75,
+          "startingLine": 146
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete Bill",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 164
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 195
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 196
+        }
+      },
+      {
+        "comment": "",
+        "key": "Are you sure you want to delete '%@'? This action cannot be undone.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 200
+        }
+      }
+    ]
+  },
+  "version": 1
+}

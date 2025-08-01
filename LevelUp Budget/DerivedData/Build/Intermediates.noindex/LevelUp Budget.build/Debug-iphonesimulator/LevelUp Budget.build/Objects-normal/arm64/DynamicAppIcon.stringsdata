@@ -1,0 +1,24 @@
+{
+  "source": "/Volumes/CheatCodez HD/XCODE/LevelUp Budget/LevelUp Budget/LevelUp Budget/DynamicAppIcon.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "$",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 59
+        }
+      },
+      {
+        "comment": "",
+        "key": "LevelUp Budget Icons",
+        "location": {
+          "startingColumn": 1,
+          "startingLine": 107
+        }
+      }
+    ]
+  },
+  "version": 1
+}
