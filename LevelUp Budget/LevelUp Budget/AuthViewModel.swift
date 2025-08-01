@@ -32,6 +32,12 @@ class AuthViewModel: ObservableObject {
     private func setupAuthStateListener() {
         // Add error handling for Firebase Auth initialization
         do {
+            // Check if Firebase is configured
+            guard FirebaseApp.app() != nil else {
+                print("⚠️ Firebase not configured, skipping auth state listener")
+                return
+            }
+            
             _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
                 Task { @MainActor in
                     if let user = user {
@@ -56,6 +62,16 @@ class AuthViewModel: ObservableObject {
     func signInWithEmail(email: String, password: String) async {
         isLoading = true
         errorMessage = nil
+        
+        // Check network connectivity first
+        guard await checkNetworkConnectivity() else {
+            await MainActor.run {
+                self.errorMessage = "No internet connection. Please check your network and try again."
+                self.showError = true
+                self.isLoading = false
+            }
+            return
+        }
         
         do {
             let authResult = try await Auth.auth().signIn(withEmail: email, password: password)
@@ -84,6 +100,16 @@ class AuthViewModel: ObservableObject {
     func createAccount(email: String, password: String, name: String) async {
         isLoading = true
         errorMessage = nil
+        
+        // Check network connectivity first
+        guard await checkNetworkConnectivity() else {
+            await MainActor.run {
+                self.errorMessage = "No internet connection. Please check your network and try again."
+                self.showError = true
+                self.isLoading = false
+            }
+            return
+        }
         
         do {
             let authResult = try await Auth.auth().createUser(withEmail: email, password: password)
@@ -367,6 +393,18 @@ class AuthViewModel: ObservableObject {
         } else {
             // Fallback for other types of errors
             return error.localizedDescription
+        }
+    }
+    
+    // MARK: - Helper Methods
+    private func checkNetworkConnectivity() async -> Bool {
+        // Simple network connectivity check
+        do {
+            let url = URL(string: "https://www.google.com")!
+            let (_, response) = try await URLSession.shared.data(from: url)
+            return (response as? HTTPURLResponse)?.statusCode == 200
+        } catch {
+            return false
         }
     }
 }

@@ -20,11 +20,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("🚀 AppDelegate: Application did finish launching")
         
-        // Configure Firebase
-        FirebaseApp.configure()
+        // Configure Firebase with error handling
+        configureFirebase()
         
         // Setup push notifications
         setupPushNotifications()
+    }
+    
+    private func configureFirebase() {
+        do {
+            // Check if Firebase is already configured
+            if FirebaseApp.app() == nil {
+                print("🔧 Configuring Firebase...")
+                FirebaseApp.configure()
+                print("✅ Firebase configured successfully")
+            } else {
+                print("ℹ️ Firebase already configured")
+            }
+        } catch {
+            print("❌ Firebase configuration error: \(error.localizedDescription)")
+            // Don't crash the app if Firebase fails to configure
+        }
     }
     
     func application(_ application: NSApplication, didReceiveRemoteNotification userInfo: [String: Any]) {
@@ -79,13 +95,29 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         print("🚀 AppDelegate: Application did finish launching")
         
-        // Configure Firebase
-        FirebaseApp.configure()
+        // Configure Firebase with error handling
+        configureFirebase()
         
         // Setup push notifications
         setupPushNotifications()
         
         return true
+    }
+    
+    private func configureFirebase() {
+        do {
+            // Check if Firebase is already configured
+            if FirebaseApp.app() == nil {
+                print("🔧 Configuring Firebase...")
+                FirebaseApp.configure()
+                print("✅ Firebase configured successfully")
+            } else {
+                print("ℹ️ Firebase already configured")
+            }
+        } catch {
+            print("❌ Firebase configuration error: \(error.localizedDescription)")
+            // Don't crash the app if Firebase fails to configure
+        }
     }
     
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [String: Any]) {
@@ -133,4 +165,5 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Handle app becoming active
     }
 }
+
 #endif 
