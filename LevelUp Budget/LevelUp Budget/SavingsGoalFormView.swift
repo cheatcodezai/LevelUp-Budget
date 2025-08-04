@@ -322,6 +322,17 @@ struct SavingsGoalFormView: View {
             existingGoal.targetDate = targetDate
             existingGoal.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
             existingGoal.updatedAt = Date()
+            
+            // Sync updated goal to CloudKit (macOS only)
+            #if os(macOS)
+            CloudKitManager.shared.saveSavingToCloudKit(existingGoal) { success, error in
+                if success {
+                    print("✅ Updated savings goal synced to CloudKit: \(existingGoal.title)")
+                } else if let error = error {
+                    print("❌ Failed to sync updated savings goal to CloudKit: \(error.localizedDescription)")
+                }
+            }
+            #endif
         } else {
             // Create new goal
             let newGoal = SavingsGoal(
@@ -334,6 +345,17 @@ struct SavingsGoalFormView: View {
                 notes: notes.trimmingCharacters(in: .whitespacesAndNewlines)
             )
             modelContext.insert(newGoal)
+            
+            // Sync new goal to CloudKit (macOS only)
+            #if os(macOS)
+            CloudKitManager.shared.saveSavingToCloudKit(newGoal) { success, error in
+                if success {
+                    print("✅ New savings goal synced to CloudKit: \(newGoal.title)")
+                } else if let error = error {
+                    print("❌ Failed to sync new savings goal to CloudKit: \(error.localizedDescription)")
+                }
+            }
+            #endif
         }
         
         dismiss()

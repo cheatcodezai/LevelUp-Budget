@@ -439,15 +439,30 @@ extension BillsListView {
             }
         }
         
-        // Fetch bills from CloudKit (for future implementation)
-        cloudKitManager.fetchBillsFromCloudKit { fetchedBills, error in
-            if let error = error {
-                print("❌ Failed to fetch bills from CloudKit: \(error.localizedDescription)")
-            } else if let fetchedBills = fetchedBills {
-                print("✅ Fetched \(fetchedBills.count) bills from CloudKit")
-                // TODO: Implement merge logic for fetched bills
-            }
-        }
+        // Fetch and merge bills from CloudKit (macOS only) - DISABLED TO PREVENT LOOP
+        #if os(macOS)
+        // Temporarily disabled to prevent infinite sync loop
+        // cloudKitManager.fetchAllDataFromCloudKit { fetchedBills, fetchedSavings, error in
+        //     if let error = error {
+        //         print("❌ Failed to fetch data from CloudKit: \(error.localizedDescription)")
+        //     } else {
+        //         // Merge fetched data with local data
+        //         cloudKitManager.mergeCloudKitData(
+        //             fetchedBills: fetchedBills,
+        //             fetchedSavings: fetchedSavings,
+        //             localBills: bills,
+        //             localSavings: [],
+        //             modelContext: modelContext
+        //         ) { success, error in
+        //             if success {
+        //                 print("✅ CloudKit data merged successfully")
+        //             } else if let error = error {
+        //                 print("❌ Failed to merge CloudKit data: \(error.localizedDescription)")
+        //             }
+        //         }
+        //     }
+        // }
+        #endif
     }
 }
 

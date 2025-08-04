@@ -21,50 +21,24 @@ struct SavingsGoalDetailView: View {
     let goal: SavingsGoal
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color.black.ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: 32) {
-                        headerCard
-                        detailsCard
-                        contributionCard
-                    }
-                    .padding()
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            ScrollView {
+                VStack(spacing: 32) {
+                    headerCard
+                    detailsCard
+                    contributionCard
+                    actionsCard
                 }
+                .padding(.horizontal, 20)
             }
-            .navigationTitle(goal.title)
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                #if os(iOS)
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Back") {
-                        dismiss()
-                    }
-                    .foregroundColor(.white)
-                }
-                #endif
-                
-                #if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button("Edit") {
-                            showingEditSheet = true
-                        }
-                        Button("Delete", role: .destructive) {
-                            showingDeleteAlert = true
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .foregroundColor(.white)
-                    }
-                }
-                #endif
-            }
+            .padding(.vertical, 20)
         }
+        .navigationTitle("Savings Goal Details")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         .sheet(isPresented: $showingEditSheet) {
             SavingsGoalFormView(goal: goal)
         }
@@ -203,9 +177,63 @@ struct SavingsGoalDetailView: View {
         
         do {
             try modelContext.save()
+            
+            // Sync updated goal to CloudKit (macOS only)
+            #if os(macOS)
+            CloudKitManager.shared.saveSavingToCloudKit(goal) { success, error in
+                if success {
+                    print("✅ Updated savings goal synced to CloudKit: \(goal.title)")
+                } else if let error = error {
+                    print("❌ Failed to sync updated savings goal to CloudKit: \(error.localizedDescription)")
+                }
+            }
+            #endif
         } catch {
             print("Error saving contribution: \(error)")
         }
+    }
+    
+    // MARK: - Actions Card
+    
+    private var actionsCard: some View {
+        VStack(spacing: 16) {
+            Text("Actions")
+                .font(.headline)
+                .foregroundColor(.white)
+            
+            VStack(spacing: 12) {
+                Button(action: {
+                    showingEditSheet = true
+                }) {
+                    HStack {
+                        Image(systemName: "pencil")
+                        Text("Edit Goal")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(red: 0, green: 0.8, blue: 0.4))
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                
+                Button(action: {
+                    showingDeleteAlert = true
+                }) {
+                    HStack {
+                        Image(systemName: "trash")
+                        Text("Delete Goal")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.red)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+            }
+        }
+        .padding(20)
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(16)
     }
     
     private func deleteGoal() {

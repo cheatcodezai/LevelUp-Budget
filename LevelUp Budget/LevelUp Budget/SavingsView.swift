@@ -459,15 +459,30 @@ extension SavingsView {
             }
         }
         
-        // Fetch savings goals from CloudKit (for future implementation)
-        cloudKitManager.fetchSavingsFromCloudKit { fetchedSavings, error in
-            if let error = error {
-                print("❌ Failed to fetch savings goals from CloudKit: \(error.localizedDescription)")
-            } else if let fetchedSavings = fetchedSavings {
-                print("✅ Fetched \(fetchedSavings.count) savings goals from CloudKit")
-                // TODO: Implement merge logic for fetched savings goals
-            }
-        }
+        // Fetch and merge savings goals from CloudKit (macOS only) - DISABLED TO PREVENT LOOP
+        #if os(macOS)
+        // Temporarily disabled to prevent infinite sync loop
+        // cloudKitManager.fetchAllDataFromCloudKit { fetchedBills, fetchedSavings, error in
+        //     if let error = error {
+        //         print("❌ Failed to fetch data from CloudKit: \(error.localizedDescription)")
+        //     } else {
+        //         // Merge fetched data with local data
+        //         cloudKitManager.mergeCloudKitData(
+        //             fetchedBills: fetchedBills,
+        //             fetchedSavings: fetchedSavings,
+        //             localBills: [],
+        //             localSavings: savingsGoals,
+        //             modelContext: modelContext
+        //         ) { success, error in
+        //             if success {
+        //                 print("✅ CloudKit data merged successfully")
+        //             } else if let error = error {
+        //                 print("❌ Failed to merge CloudKit data: \(error.localizedDescription)")
+        //             }
+        //         }
+        //     }
+        // }
+        #endif
     }
 }
 

@@ -33,6 +33,9 @@ class CloudKitManager: ObservableObject {
     @Published var lastSyncDate: Date?
     @Published var syncError: String?
     
+    // Private properties for sync control
+    private var _isSyncing = false
+    
     // Check if current user is a guest
     private var isGuestUser: Bool {
         // Check if the current user ID starts with "guest_"
@@ -72,6 +75,10 @@ class CloudKitManager: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             self.checkCloudKitAvailability()
         }
+        
+        // Add immediate availability check for debugging
+        print("🔍 Checking CloudKit availability immediately...")
+        checkCloudKitAvailability()
     }
     
     // MARK: - CloudKit Availability Check
@@ -153,7 +160,12 @@ class CloudKitManager: ObservableObject {
     ///   - bill: The BillItem to save
     ///   - completion: Completion handler with success/failure result
     func saveBillToCloudKit(_ bill: BillItem, completion: @escaping (Bool, Error?) -> Void) {
+        print("🔄 Attempting to save bill to CloudKit: \(bill.title)")
+        print("🔍 CloudKit available: \(isCloudKitAvailable)")
+        print("🔍 Database available: \(privateDatabase != nil)")
+        
         guard isCloudKitAvailable, let database = privateDatabase else {
+            print("❌ CloudKit not available for bill save")
             completion(false, NSError(domain: "CloudKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "CloudKit not available"]))
             return
         }
@@ -389,9 +401,72 @@ class CloudKitManager: ObservableObject {
     ///   - savings: Array of local savings goals to sync
     ///   - completion: Completion handler with sync result
     func syncAllDataToCloudKit(bills: [BillItem], savings: [SavingsGoal], completion: @escaping (Bool, Error?) -> Void) {
-        // CloudKit is disabled for now to prevent crashes
-        print("⚠️ CloudKit sync disabled - using local storage only")
-        completion(false, NSError(domain: "CloudKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "CloudKit not configured"]))
+        // Check if CloudKit is available
+        guard isCloudKitAvailable, let database = privateDatabase else {
+            print("⚠️ CloudKit not available for sync")
+            completion(false, NSError(domain: "CloudKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "CloudKit not available"]))
+            return
+        }
+        
+        // Prevent recursive sync calls
+        guard !_isSyncing else {
+            print("⚠️ Sync already in progress, skipping")
+            completion(false, NSError(domain: "CloudKit", code: 3, userInfo: [NSLocalizedDescriptionKey: "Sync already in progress"]))
+            return
+        }
+        
+        _isSyncing = true
+        print("🔄 Starting CloudKit sync for \(bills.count) bills and \(savings.count) savings goals")
+        
+        let group = DispatchGroup()
+        var syncErrors: [Error] = []
+        var billsSynced = 0
+        var savingsSynced = 0
+        
+        // Sync bills
+        for bill in bills {
+            group.enter()
+            saveBillToCloudKit(bill) { success, error in
+                if success {
+                    billsSynced += 1
+                    print("✅ Synced bill: \(bill.title)")
+                } else if let error = error {
+                    syncErrors.append(error)
+                    print("❌ Failed to sync bill \(bill.title): \(error.localizedDescription)")
+                }
+                group.leave()
+            }
+        }
+        
+        // Sync savings goals
+        for saving in savings {
+            group.enter()
+            saveSavingToCloudKit(saving) { success, error in
+                if success {
+                    savingsSynced += 1
+                    print("✅ Synced savings goal: \(saving.title)")
+                } else if let error = error {
+                    syncErrors.append(error)
+                    print("❌ Failed to sync savings goal \(saving.title): \(error.localizedDescription)")
+                }
+                group.leave()
+            }
+        }
+        
+        group.notify(queue: .main) { [weak self] in
+            self?._isSyncing = false
+            if syncErrors.isEmpty {
+                print("✅ CloudKit sync completed successfully: \(billsSynced) bills, \(savingsSynced) savings goals")
+                self?.lastSyncDate = Date()
+                self?.syncError = nil
+                completion(true, nil)
+            } else {
+                let errorMessage = "Sync completed with \(syncErrors.count) errors"
+                print("⚠️ \(errorMessage)")
+                self?.syncError = errorMessage
+                completion(false, NSError(domain: "CloudKit", code: 2, userInfo: [NSLocalizedDescriptionKey: errorMessage]))
+            }
+        }
     }
     
     /// Fetch all data from CloudKit and return as tuple
@@ -422,6 +497,243 @@ class CloudKitManager: ObservableObject {
         
         group.notify(queue: .main) {
             completion(fetchedBills, fetchedSavings, fetchError)
+        }
+    }
+    
+    // MARK: - Merge Operations
+    
+    /// Merge fetched CloudKit data with local SwiftData
+    /// - Parameters:
+    ///   - fetchedBills: Bills from CloudKit
+    ///   - fetchedSavings: Savings goals from CloudKit
+    ///   - localBills: Current local bills
+    ///   - localSavings: Current local savings goals
+    ///   - modelContext: SwiftData model context
+    ///   - completion: Completion handler with merge result
+    func mergeCloudKitData(
+        fetchedBills: [BillItem]?,
+        fetchedSavings: [SavingsGoal]?,
+        localBills: [BillItem],
+        localSavings: [SavingsGoal],
+        modelContext: ModelContext,
+        completion: @escaping (Bool, Error?) -> Void
+    ) {
+        print("🔄 Starting CloudKit data merge...")
+        
+        var mergeErrors: [Error] = []
+        var billsMerged = 0
+        var savingsMerged = 0
+        
+        // Merge bills
+        if let fetchedBills = fetchedBills {
+            let (mergedBills, billErrors) = mergeBills(fetched: fetchedBills, local: localBills, modelContext: modelContext)
+            billsMerged = mergedBills
+            mergeErrors.append(contentsOf: billErrors)
+        }
+        
+        // Merge savings goals
+        if let fetchedSavings = fetchedSavings {
+            let (mergedSavings, savingErrors) = mergeSavings(fetched: fetchedSavings, local: localSavings, modelContext: modelContext)
+            savingsMerged = mergedSavings
+            mergeErrors.append(contentsOf: savingErrors)
+        }
+        
+        // Clean up any existing duplicates before saving
+        cleanupDuplicates(bills: localBills, savings: localSavings, modelContext: modelContext)
+        
+        // Save changes to SwiftData
+        do {
+            try modelContext.save()
+            print("✅ CloudKit merge completed: \(billsMerged) bills, \(savingsMerged) savings goals merged")
+            completion(true, nil)
+        } catch {
+            print("❌ Failed to save merged data: \(error.localizedDescription)")
+            completion(false, error)
+        }
+    }
+    
+    /// Merge bills from CloudKit with local bills
+    /// - Parameters:
+    ///   - fetched: Bills from CloudKit
+    ///   - local: Current local bills
+    ///   - modelContext: SwiftData model context
+    /// - Returns: Tuple of (merged count, errors)
+    private func mergeBills(fetched: [BillItem], local: [BillItem], modelContext: ModelContext) -> (Int, [Error]) {
+        var mergedCount = 0
+        var errors: [Error] = []
+        
+        print("🔄 Merging bills: \(fetched.count) from CloudKit, \(local.count) local")
+        
+        for fetchedBill in fetched {
+            // Try to find matching local bill by title and due date
+            let matchingLocal = local.first { localBill in
+                localBill.title == fetchedBill.title &&
+                Calendar.current.isDate(localBill.dueDate, inSameDayAs: fetchedBill.dueDate)
+            }
+            
+            if let localBill = matchingLocal {
+                // Update existing local bill if CloudKit version is newer
+                if fetchedBill.updatedAt > localBill.updatedAt {
+                    updateLocalBill(localBill, with: fetchedBill)
+                    mergedCount += 1
+                    print("✅ Updated local bill: \(fetchedBill.title)")
+                } else {
+                    print("ℹ️ Skipped bill (local is newer): \(fetchedBill.title)")
+                }
+            } else {
+                // Check if we already have this bill in the database to prevent duplicates
+                let existingBill = local.first { localBill in
+                    localBill.title == fetchedBill.title &&
+                    abs(localBill.dueDate.timeIntervalSince(fetchedBill.dueDate)) < 60 // Within 1 minute
+                }
+                
+                if existingBill == nil {
+                    // Add new bill from CloudKit
+                    modelContext.insert(fetchedBill)
+                    mergedCount += 1
+                    print("✅ Added new bill from CloudKit: \(fetchedBill.title)")
+                } else {
+                    print("ℹ️ Skipped duplicate bill: \(fetchedBill.title)")
+                }
+            }
+        }
+        
+        return (mergedCount, errors)
+    }
+    
+    /// Merge savings goals from CloudKit with local savings goals
+    /// - Parameters:
+    ///   - fetched: Savings goals from CloudKit
+    ///   - local: Current local savings goals
+    ///   - modelContext: SwiftData model context
+    /// - Returns: Tuple of (merged count, errors)
+    private func mergeSavings(fetched: [SavingsGoal], local: [SavingsGoal], modelContext: ModelContext) -> (Int, [Error]) {
+        var mergedCount = 0
+        var errors: [Error] = []
+        
+        print("🔄 Merging savings: \(fetched.count) from CloudKit, \(local.count) local")
+        
+        for fetchedSaving in fetched {
+            // Try to find matching local savings goal by title and target date
+            let matchingLocal = local.first { localSaving in
+                localSaving.title == fetchedSaving.title &&
+                Calendar.current.isDate(localSaving.targetDate, inSameDayAs: fetchedSaving.targetDate)
+            }
+            
+            if let localSaving = matchingLocal {
+                // Update existing local savings goal if CloudKit version is newer
+                if fetchedSaving.updatedAt > localSaving.updatedAt {
+                    updateLocalSavingsGoal(localSaving, with: fetchedSaving)
+                    mergedCount += 1
+                    print("✅ Updated local savings goal: \(fetchedSaving.title)")
+                } else {
+                    print("ℹ️ Skipped savings goal (local is newer): \(fetchedSaving.title)")
+                }
+            } else {
+                // Check if we already have this savings goal in the database to prevent duplicates
+                let existingSaving = local.first { localSaving in
+                    localSaving.title == fetchedSaving.title &&
+                    abs(localSaving.targetDate.timeIntervalSince(fetchedSaving.targetDate)) < 86400 // Within 1 day
+                }
+                
+                if existingSaving == nil {
+                    // Add new savings goal from CloudKit
+                    modelContext.insert(fetchedSaving)
+                    mergedCount += 1
+                    print("✅ Added new savings goal from CloudKit: \(fetchedSaving.title)")
+                } else {
+                    print("ℹ️ Skipped duplicate savings goal: \(fetchedSaving.title)")
+                }
+            }
+        }
+        
+        return (mergedCount, errors)
+    }
+    
+    /// Update local bill with data from CloudKit
+    /// - Parameters:
+    ///   - localBill: Local bill to update
+    ///   - cloudBill: Bill data from CloudKit
+    private func updateLocalBill(_ localBill: BillItem, with cloudBill: BillItem) {
+        localBill.title = cloudBill.title
+        localBill.amount = cloudBill.amount
+        localBill.dueDate = cloudBill.dueDate
+        localBill.isPaid = cloudBill.isPaid
+        localBill.notes = cloudBill.notes
+        localBill.category = cloudBill.category
+        localBill.isRecurring = cloudBill.isRecurring
+        localBill.recurrenceType = cloudBill.recurrenceType
+        localBill.endDate = cloudBill.endDate
+        localBill.updatedAt = cloudBill.updatedAt
+    }
+    
+    /// Update local savings goal with data from CloudKit
+    /// - Parameters:
+    ///   - localSaving: Local savings goal to update
+    ///   - cloudSaving: Savings goal data from CloudKit
+    private func updateLocalSavingsGoal(_ localSaving: SavingsGoal, with cloudSaving: SavingsGoal) {
+        localSaving.title = cloudSaving.title
+        localSaving.category = cloudSaving.category
+        localSaving.goalType = cloudSaving.goalType
+        localSaving.targetAmount = cloudSaving.targetAmount
+        localSaving.currentAmount = cloudSaving.currentAmount
+        localSaving.targetDate = cloudSaving.targetDate
+        localSaving.notes = cloudSaving.notes
+        localSaving.updatedAt = cloudSaving.updatedAt
+    }
+    
+    /// Clean up duplicate bills and savings goals
+    /// - Parameters:
+    ///   - bills: Array of local bills
+    ///   - savings: Array of local savings goals
+    ///   - modelContext: SwiftData model context
+    func cleanupDuplicates(bills: [BillItem], savings: [SavingsGoal], modelContext: ModelContext) {
+        print("🧹 Cleaning up duplicates...")
+        
+        // Group bills by title and due date
+        let groupedBills = Dictionary(grouping: bills) { bill in
+            "\(bill.title)_\(Calendar.current.startOfDay(for: bill.dueDate))"
+        }
+        
+        // Keep only the most recent bill from each group
+        for (_, duplicateBills) in groupedBills {
+            if duplicateBills.count > 1 {
+                let sortedBills = duplicateBills.sorted { $0.updatedAt > $1.updatedAt }
+                let keepBill = sortedBills.first!
+                let deleteBills = Array(sortedBills.dropFirst())
+                
+                for bill in deleteBills {
+                    modelContext.delete(bill)
+                    print("🗑️ Deleted duplicate bill: \(bill.title)")
+                }
+            }
+        }
+        
+        // Group savings goals by title and target date
+        let groupedSavings = Dictionary(grouping: savings) { saving in
+            "\(saving.title)_\(Calendar.current.startOfDay(for: saving.targetDate))"
+        }
+        
+        // Keep only the most recent savings goal from each group
+        for (_, duplicateSavings) in groupedSavings {
+            if duplicateSavings.count > 1 {
+                let sortedSavings = duplicateSavings.sorted { $0.updatedAt > $1.updatedAt }
+                let keepSaving = sortedSavings.first!
+                let deleteSavings = Array(sortedSavings.dropFirst())
+                
+                for saving in deleteSavings {
+                    modelContext.delete(saving)
+                    print("🗑️ Deleted duplicate savings goal: \(saving.title)")
+                }
+            }
+        }
+        
+        // Save changes
+        do {
+            try modelContext.save()
+            print("✅ Duplicate cleanup completed")
+        } catch {
+            print("❌ Failed to save after cleanup: \(error.localizedDescription)")
         }
     }
 } 

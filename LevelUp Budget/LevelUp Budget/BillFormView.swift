@@ -404,6 +404,17 @@ struct BillFormView: View {
             existingBill.recurrenceType = finalRecurrenceType
             existingBill.endDate = finalEndDate
             existingBill.updatedAt = Date()
+            
+            // Sync updated bill to CloudKit (macOS only)
+            #if os(macOS)
+            CloudKitManager.shared.saveBillToCloudKit(existingBill) { success, error in
+                if success {
+                    print("✅ Updated bill synced to CloudKit: \(existingBill.title)")
+                } else if let error = error {
+                    print("❌ Failed to sync updated bill to CloudKit: \(error.localizedDescription)")
+                }
+            }
+            #endif
         } else {
             // Create new bill
             let newBill = BillItem(
@@ -418,6 +429,17 @@ struct BillFormView: View {
                 endDate: finalEndDate
             )
             modelContext.insert(newBill)
+            
+            // Sync new bill to CloudKit (macOS only)
+            #if os(macOS)
+            CloudKitManager.shared.saveBillToCloudKit(newBill) { success, error in
+                if success {
+                    print("✅ New bill synced to CloudKit: \(newBill.title)")
+                } else if let error = error {
+                    print("❌ Failed to sync new bill to CloudKit: \(error.localizedDescription)")
+                }
+            }
+            #endif
         }
         
         dismiss()
