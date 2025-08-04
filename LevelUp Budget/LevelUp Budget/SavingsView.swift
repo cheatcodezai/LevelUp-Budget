@@ -76,6 +76,24 @@ struct SavingsView: View {
                     }
                     .accessibilityLabel("Add new savings goal")
                 }
+                
+                // Cleanup duplicates button
+                ToolbarItem(placement: .secondaryAction) {
+                    Button(action: {
+                        Task {
+                            await cloudKitManager.cleanupDuplicates(
+                                bills: [], // Empty array since we're only cleaning savings
+                                savings: savingsGoals,
+                                modelContext: modelContext
+                            )
+                        }
+                    }) {
+                        Image(systemName: "trash.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.orange)
+                    }
+                    .accessibilityLabel("Clean up duplicate savings goals")
+                }
             }
         }
         .sheet(isPresented: $showingAddGoal) {
