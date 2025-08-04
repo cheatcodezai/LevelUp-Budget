@@ -228,12 +228,19 @@ struct BillsListView: View {
             if filteredBills.isEmpty {
                 EmptyStateView()
             } else {
-                LazyVStack(spacing: 8) {
-                    ForEach(filteredBills) { bill in
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(filteredBills.enumerated()), id: \.element.id) { index, bill in
                         NavigationLink(destination: BillDetailView(bill: bill)) {
                             BillCardView(bill: bill)
                         }
-                        .padding(.vertical, 6)
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        // Add separator between items (except for the last one)
+                        if index < filteredBills.count - 1 {
+                            Divider()
+                                .background(Color.gray.opacity(0.2))
+                                .padding(.leading, 72) // Align with content, not icon
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -279,6 +286,7 @@ struct FilterButton: View {
 
 struct BillCardView: View {
     let bill: BillItem
+    @State private var isHovered = false
     
     private var statusText: String {
         if bill.isPaid {
@@ -305,65 +313,88 @@ struct BillCardView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 16) {
-                // Bill Icon
-                ZStack {
-                    Circle()
-                        .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.1))
-                        .frame(width: 40, height: 40)
+        HStack(spacing: 16) {
+            // Bill Icon
+            ZStack {
+                Circle()
+                    .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.1))
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: "doc.text.fill")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
+            }
+            
+            // Bill Details
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(bill.title)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
                     
-                    Image(systemName: "doc.text.fill")
-                        .font(.system(size: 16, weight: .medium))
+                    Spacer()
+                    
+                    Text("$\(String(format: "%.2f", bill.amount))")
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
                 }
                 
-                // Bill Details
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(bill.title)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                        
-                        Spacer()
-                        
-                        Text("$\(String(format: "%.2f", bill.amount))")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
-                    }
+                HStack {
+                    Text(bill.category)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.gray.opacity(0.8))
                     
-                    HStack {
-                        Text(bill.category)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.gray.opacity(0.8))
-                        
-                        Spacer()
-                        
-                        Text(bill.dueDate, style: .date)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.gray.opacity(0.8))
-                    }
-                }
-                
-                // Status Indicator
-                VStack(spacing: 4) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 8, height: 8)
+                    Spacer()
                     
-                    Text(statusText)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(statusColor)
+                    Text(bill.dueDate, style: .date)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.gray.opacity(0.8))
                 }
             }
+            
+            // Pill-style Status Indicator
+            VStack(spacing: 6) {
+                Text(statusText)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(statusColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(statusColor.opacity(0.15))
+                            .overlay(
+                                Capsule()
+                                    .stroke(statusColor.opacity(0.3), lineWidth: 1)
+                            )
+                    )
+            }
         }
-        .padding(16)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
-                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 2)
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1C1C1E equivalent
+                .overlay(
+                    // Faint top divider
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.1))
+                        .frame(height: 1)
+                        .offset(y: -0.5),
+                    alignment: .top
+                )
+                .overlay(
+                    // Soft green border on hover
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isHovered ? Color(red: 0, green: 1, blue: 0.5).opacity(0.6) : Color.clear, lineWidth: 1.5)
+                )
+                .shadow(color: isHovered ? Color(red: 0, green: 1, blue: 0.5).opacity(0.3) : Color.black.opacity(0.1), radius: isHovered ? 8 : 4, x: 0, y: isHovered ? 4 : 2)
         )
-        // Removed stroke overlay to fix macOS rendering issue
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
     }
 }
 

@@ -226,12 +226,19 @@ struct SavingsView: View {
             if filteredGoals.isEmpty {
                 EmptySavingsView()
             } else {
-                LazyVStack(spacing: 8) {
-                    ForEach(filteredGoals) { goal in
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(filteredGoals.enumerated()), id: \.element.id) { index, goal in
                         NavigationLink(destination: SavingsGoalDetailView(goal: goal)) {
                             SavingsGoalCardView(goal: goal)
                         }
-                        .padding(.vertical, 6)
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        // Add separator between items (except for the last one)
+                        if index < filteredGoals.count - 1 {
+                            Divider()
+                                .background(Color.gray.opacity(0.2))
+                                .padding(.leading, 72) // Align with content, not icon
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -269,6 +276,7 @@ struct SavingsFilterButton: View {
 
 struct SavingsGoalCardView: View {
     let goal: SavingsGoal
+    @State private var isHovered = false
     
     private var progressPercentage: Double {
         guard goal.targetAmount > 0 else { return 0 }
@@ -296,95 +304,118 @@ struct SavingsGoalCardView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 16) {
-                // Goal Icon
-                ZStack {
-                    Circle()
-                        .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.1))
-                        .frame(width: 40, height: 40)
+        HStack(spacing: 16) {
+            // Goal Icon
+            ZStack {
+                Circle()
+                    .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.1))
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: "banknote.fill")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
+            }
+            
+            // Goal Details
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(goal.title)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
                     
-                    Image(systemName: "banknote.fill")
-                        .font(.system(size: 16, weight: .medium))
+                    Spacer()
+                    
+                    Text("$\(String(format: "%.2f", goal.currentAmount))")
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
                 }
                 
-                // Goal Details
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(goal.title)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                        
-                        Spacer()
-                        
-                        Text("$\(String(format: "%.2f", goal.currentAmount))")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
-                    }
+                HStack {
+                    Text(goal.category)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.gray.opacity(0.8))
                     
-                    HStack {
-                        Text(goal.category)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.gray)
-                        
-                        Spacer()
-                        
-                        Text("of $\(String(format: "%.2f", goal.targetAmount))")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.gray)
-                    }
+                    Spacer()
                     
-                    // Progress Bar
-                    VStack(spacing: 4) {
-                        HStack {
-                            Text("\(Int(progressPercentage * 100))%")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.gray)
-                            
-                            Spacer()
-                        }
-                        
-                        GeometryReader { geometry in
-                            ZStack(alignment: .leading) {
-                                // Background track
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.3))
-                                    .frame(height: 4)
-                                    .cornerRadius(2)
-                                
-                                // Progress fill
-                                Rectangle()
-                                    .fill(Color(red: 0, green: 1, blue: 0.4))
-                                    .frame(width: geometry.size.width * progressPercentage, height: 4)
-                                    .cornerRadius(2)
-                                    .animation(.easeInOut(duration: 0.3), value: progressPercentage)
-                            }
-                        }
-                        .frame(height: 4)
-                    }
-                    .padding(.top, 4)
+                    Text("of $\(String(format: "%.2f", goal.targetAmount))")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.gray.opacity(0.8))
                 }
                 
-                // Status Indicator
-                VStack(spacing: 4) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 8, height: 8)
+                // Progress Bar with proper spacing
+                VStack(spacing: 6) {
+                    HStack {
+                        Text("\(Int(progressPercentage * 100))%")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.gray.opacity(0.7))
+                        
+                        Spacer()
+                    }
                     
-                    Text(statusText)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(statusColor)
+                    // Indented progress bar
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            // Background track
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(height: 6)
+                            
+                            // Progress fill
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color(red: 0, green: 1, blue: 0.4))
+                                .frame(width: geometry.size.width * progressPercentage, height: 6)
+                                .animation(.easeInOut(duration: 0.3), value: progressPercentage)
+                        }
+                    }
+                    .frame(height: 6)
+                    .padding(.horizontal, 4) // Slight indentation
                 }
+                .padding(.top, 8)
+            }
+            
+            // Pill-style Status Indicator
+            VStack(spacing: 6) {
+                Text(statusText)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(statusColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(statusColor.opacity(0.15))
+                            .overlay(
+                                Capsule()
+                                    .stroke(statusColor.opacity(0.3), lineWidth: 1)
+                            )
+                    )
             }
         }
-        .padding(16)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
-                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 2)
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1C1C1E equivalent
+                .overlay(
+                    // Faint top divider
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.1))
+                        .frame(height: 1)
+                        .offset(y: -0.5),
+                    alignment: .top
+                )
+                .overlay(
+                    // Soft green border on hover
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isHovered ? Color(red: 0, green: 1, blue: 0.5).opacity(0.6) : Color.clear, lineWidth: 1.5)
+                )
+                .shadow(color: isHovered ? Color(red: 0, green: 1, blue: 0.5).opacity(0.3) : Color.black.opacity(0.1), radius: isHovered ? 8 : 4, x: 0, y: isHovered ? 4 : 2)
         )
-        // Removed stroke overlay to fix macOS rendering issue
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
     }
 }
 

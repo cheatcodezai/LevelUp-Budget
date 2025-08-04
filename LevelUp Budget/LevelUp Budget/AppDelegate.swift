@@ -28,18 +28,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     private func configureFirebase() {
-        do {
-            // Check if Firebase is already configured
-            if FirebaseApp.app() == nil {
-                print("🔧 Configuring Firebase...")
-                FirebaseApp.configure()
-                print("✅ Firebase configured successfully")
-            } else {
-                print("ℹ️ Firebase already configured")
-            }
-        } catch {
-            print("❌ Firebase configuration error: \(error.localizedDescription)")
-            // Don't crash the app if Firebase fails to configure
+        // Check if Firebase is already configured
+        if FirebaseApp.app() == nil {
+            print("🔧 Configuring Firebase...")
+            FirebaseApp.configure()
+            print("✅ Firebase configured successfully")
+        } else {
+            print("ℹ️ Firebase already configured")
         }
     }
     

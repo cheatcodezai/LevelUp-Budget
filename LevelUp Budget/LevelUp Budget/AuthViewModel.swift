@@ -30,51 +30,72 @@ class AuthViewModel: ObservableObject {
     }
     
     private func setupAuthStateListener() {
-        // Add error handling for Firebase Auth initialization
-        do {
-            // Check if Firebase is configured
-            guard FirebaseApp.app() != nil else {
-                print("⚠️ Firebase not configured, skipping auth state listener")
-                return
-            }
-            
-            _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
-                Task { @MainActor in
-                    if let user = user {
-                        self?.currentUser = User(
-                            id: user.uid,
-                            email: user.email,
-                            name: user.displayName,
-                            authProvider: .email // Default for macOS
-                        )
-                    } else {
-                        self?.currentUser = nil
-                    }
+        // Check if Firebase is configured
+        guard FirebaseApp.app() != nil else {
+            print("⚠️ Firebase not configured, skipping auth state listener")
+            return
+        }
+        
+        _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            Task { @MainActor in
+                if let user = user {
+                    let newUser = User(
+                        id: user.uid,
+                        email: user.email,
+                        name: user.displayName,
+                        authProvider: .email // Default for macOS
+                    )
+                    self?.currentUser = newUser
+                    // Notify CloudKitManager about the user change
+                    CloudKitManager.shared.updateGuestStatus(userId: newUser.id)
+                } else {
+                    self?.currentUser = nil
+                    // Notify CloudKitManager that no user is signed in
+                    CloudKitManager.shared.updateGuestStatus(userId: nil)
                 }
             }
-        } catch {
-            print("❌ Firebase Auth initialization error: \(error.localizedDescription)")
-            // Don't show error to user for initialization issues
         }
     }
     
-    // MARK: - Email/Password Authentication
+    // MARK: - Enhanced Email/Password Authentication with Network Diagnostics
     func signInWithEmail(email: String, password: String) async {
+        print("🔍 Starting email sign-in for: \(email)")
         isLoading = true
         errorMessage = nil
         
-        // Check network connectivity first
-        guard await checkNetworkConnectivity() else {
+        // Enhanced network diagnostics for macOS
+        #if os(macOS)
+        print("🔍 Running network diagnostics for macOS...")
+        let networkStatus = await performNetworkDiagnostics()
+        if !networkStatus.isConnected {
             await MainActor.run {
-                self.errorMessage = "No internet connection. Please check your network and try again."
+                self.errorMessage = "Network connectivity issue detected. Please check your internet connection and try again."
+                self.showError = true
+                self.isLoading = false
+            }
+            return
+        }
+        #endif
+        
+        // Verify Firebase is properly configured
+        guard FirebaseApp.app() != nil else {
+            print("❌ Firebase not configured")
+            await MainActor.run {
+                self.errorMessage = "Firebase configuration error. Please restart the app."
                 self.showError = true
                 self.isLoading = false
             }
             return
         }
         
+        print("🔍 Proceeding with Firebase Auth...")
+        
         do {
-            let authResult = try await Auth.auth().signIn(withEmail: email, password: password)
+            print("🔍 Attempting Firebase Auth sign-in...")
+            let authResult = try await withTimeout(seconds: 30) {
+                try await Auth.auth().signIn(withEmail: email, password: password)
+            }
+            print("✅ Firebase Auth sign-in successful for user: \(authResult.user.uid)")
             
             await MainActor.run {
                 self.currentUser = User(
@@ -84,12 +105,14 @@ class AuthViewModel: ObservableObject {
                     authProvider: .email
                 )
                 self.isLoading = false
+                print("✅ User object created and loading state updated")
             }
             
         } catch {
+            print("❌ Firebase Auth sign-in failed: \(error.localizedDescription)")
             await MainActor.run {
-                // Provide more user-friendly error messages
-                let errorMessage = self.getUserFriendlyErrorMessage(error)
+                // Enhanced error handling with more specific messages
+                let errorMessage = self.getEnhancedUserFriendlyErrorMessage(error)
                 self.errorMessage = errorMessage
                 self.showError = true
                 self.isLoading = false
@@ -98,25 +121,49 @@ class AuthViewModel: ObservableObject {
     }
     
     func createAccount(email: String, password: String, name: String) async {
+        print("🔍 Starting account creation for: \(email)")
         isLoading = true
         errorMessage = nil
         
-        // Check network connectivity first
-        guard await checkNetworkConnectivity() else {
+        // Enhanced network diagnostics for macOS
+        #if os(macOS)
+        print("🔍 Running network diagnostics for macOS...")
+        let networkStatus = await performNetworkDiagnostics()
+        if !networkStatus.isConnected {
             await MainActor.run {
-                self.errorMessage = "No internet connection. Please check your network and try again."
+                self.errorMessage = "Network connectivity issue detected. Please check your internet connection and try again."
+                self.showError = true
+                self.isLoading = false
+            }
+            return
+        }
+        #endif
+        
+        // Verify Firebase is properly configured
+        guard FirebaseApp.app() != nil else {
+            print("❌ Firebase not configured")
+            await MainActor.run {
+                self.errorMessage = "Firebase configuration error. Please restart the app."
                 self.showError = true
                 self.isLoading = false
             }
             return
         }
         
+        print("🔍 Proceeding with Firebase Auth...")
+        
         do {
-            let authResult = try await Auth.auth().createUser(withEmail: email, password: password)
+            print("🔍 Attempting Firebase Auth account creation...")
+            let authResult = try await withTimeout(seconds: 30) {
+                try await Auth.auth().createUser(withEmail: email, password: password)
+            }
+            print("✅ Firebase Auth account creation successful for user: \(authResult.user.uid)")
             
+            print("🔍 Updating user profile with name...")
             let changeRequest = authResult.user.createProfileChangeRequest()
             changeRequest.displayName = name
             try await changeRequest.commitChanges()
+            print("✅ User profile updated successfully")
             
             await MainActor.run {
                 self.currentUser = User(
@@ -126,12 +173,14 @@ class AuthViewModel: ObservableObject {
                     authProvider: .email
                 )
                 self.isLoading = false
+                print("✅ User object created and loading state updated")
             }
             
         } catch {
+            print("❌ Firebase Auth account creation failed: \(error.localizedDescription)")
             await MainActor.run {
-                // Provide more user-friendly error messages
-                let errorMessage = self.getUserFriendlyErrorMessage(error)
+                // Enhanced error handling with more specific messages
+                let errorMessage = self.getEnhancedUserFriendlyErrorMessage(error)
                 self.errorMessage = errorMessage
                 self.showError = true
                 self.isLoading = false
@@ -327,25 +376,19 @@ class AuthViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        do {
-            let authResult = try await Auth.auth().signInAnonymously()
+        // Create a local guest user without Firebase Auth calls
+        await MainActor.run {
+            let guestUser = User(
+                id: "guest_\(UUID().uuidString)",
+                email: nil,
+                name: "Guest User",
+                authProvider: .local
+            )
+            self.currentUser = guestUser
+            self.isLoading = false
             
-            await MainActor.run {
-                self.currentUser = User(
-                    id: authResult.user.uid,
-                    email: nil,
-                    name: "Guest User",
-                    authProvider: .email // Use email as fallback for macOS
-                )
-                self.isLoading = false
-            }
-            
-        } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.showError = true
-                self.isLoading = false
-            }
+            // Notify CloudKitManager about the guest user
+            CloudKitManager.shared.updateGuestStatus(userId: guestUser.id)
         }
     }
     
@@ -366,13 +409,137 @@ class AuthViewModel: ObservableObject {
         showError = false
     }
     
-    // MARK: - Helper Methods
-    private func getUserFriendlyErrorMessage(_ error: Error) -> String {
+    // MARK: - Enhanced Network Diagnostics for macOS
+    #if os(macOS)
+    private func performNetworkDiagnostics() async -> NetworkStatus {
+        print("🔍 Performing comprehensive network diagnostics...")
+        
+        var status = NetworkStatus()
+        
+        // Test basic connectivity
+        let connectivityResult = await checkBasicConnectivity()
+        status.isConnected = connectivityResult
+        
+        if !connectivityResult {
+            print("❌ Basic connectivity test failed")
+            return status
+        }
+        
+        // Test Firebase-specific endpoints
+        let firebaseResult = await checkFirebaseConnectivity()
+        status.canReachFirebase = firebaseResult
+        
+        if !firebaseResult {
+            print("❌ Firebase connectivity test failed")
+            return status
+        }
+        
+        // Test DNS resolution
+        let dnsResult = await checkDNSResolution()
+        status.dnsWorking = dnsResult
+        
+        print("✅ Network diagnostics completed:")
+        print("   - Basic connectivity: \(connectivityResult)")
+        print("   - Firebase connectivity: \(firebaseResult)")
+        print("   - DNS resolution: \(dnsResult)")
+        
+        return status
+    }
+    
+    private func checkBasicConnectivity() async -> Bool {
+        let testUrls = [
+            "https://www.apple.com",
+            "https://www.google.com",
+            "https://www.cloudflare.com"
+        ]
+        
+        for urlString in testUrls {
+            do {
+                let url = URL(string: urlString)!
+                let (_, response) = try await URLSession.shared.data(from: url)
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 200 {
+                        print("✅ Basic connectivity confirmed with \(urlString)")
+                        return true
+                    }
+                }
+            } catch {
+                print("❌ Failed to connect to \(urlString): \(error.localizedDescription)")
+                continue
+            }
+        }
+        
+        return false
+    }
+    
+    private func checkFirebaseConnectivity() async -> Bool {
+        let firebaseUrls = [
+            "https://firebase.google.com",
+            "https://console.firebase.google.com"
+        ]
+        
+        for urlString in firebaseUrls {
+            do {
+                let url = URL(string: urlString)!
+                let (_, response) = try await URLSession.shared.data(from: url)
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 200 {
+                        print("✅ Firebase connectivity confirmed with \(urlString)")
+                        return true
+                    }
+                }
+            } catch {
+                print("❌ Failed to connect to Firebase endpoint \(urlString): \(error.localizedDescription)")
+                continue
+            }
+        }
+        
+        return false
+    }
+    
+    private func checkDNSResolution() async -> Bool {
+        let domains = ["google.com", "firebase.google.com", "apple.com"]
+        
+        for domain in domains {
+            do {
+                let host = try await withCheckedThrowingContinuation { continuation in
+                    DispatchQueue.global().async {
+                        let host = CFHostCreateWithName(nil, domain as CFString).takeRetainedValue()
+                        CFHostStartInfoResolution(host, .addresses, nil)
+                        
+                        var success: DarwinBoolean = false
+                        if let addresses = CFHostGetAddressing(host, &success)?.takeUnretainedValue() as NSArray? {
+                            continuation.resume(returning: addresses.count > 0)
+                        } else {
+                            continuation.resume(throwing: NSError(domain: "DNS", code: -1, userInfo: nil))
+                        }
+                    }
+                }
+                if host {
+                    print("✅ DNS resolution working for \(domain)")
+                    return true
+                }
+            } catch {
+                print("❌ DNS resolution failed for \(domain): \(error.localizedDescription)")
+                continue
+            }
+        }
+        
+        return false
+    }
+    #endif
+    
+    // MARK: - Enhanced Error Handling
+    private func getEnhancedUserFriendlyErrorMessage(_ error: Error) -> String {
+        print("🔍 Analyzing error: \(error.localizedDescription)")
+        
         // Handle Firebase Auth errors properly
         if let authError = error as? AuthErrorCode {
             switch authError.code {
             case .networkError:
-                return "Network error. Please check your internet connection and try again."
+                return "Network connection issue. Please check your internet connection and try again. If the problem persists, try restarting the app."
             case .userNotFound:
                 return "Account not found. Please check your email and password."
             case .wrongPassword:
@@ -387,27 +554,87 @@ class AuthViewModel: ObservableObject {
                 return "Too many failed attempts. Please try again later."
             case .userDisabled:
                 return "This account has been disabled. Please contact support."
+            case .operationNotAllowed:
+                return "Email/password sign-in is not enabled. Please contact support."
+            case .invalidCredential:
+                return "Invalid credentials. Please check your email and password."
             default:
-                return "An error occurred. Please try again."
+                return "Authentication error: \(authError.localizedDescription). Please try again."
             }
         } else {
-            // Fallback for other types of errors
-            return error.localizedDescription
+            // Handle other types of errors
+            let errorDescription = error.localizedDescription.lowercased()
+            
+            if errorDescription.contains("network") || errorDescription.contains("connection") {
+                return "Network connection issue. Please check your internet connection and try again."
+            } else if errorDescription.contains("timeout") {
+                return "Request timed out. Please check your internet connection and try again."
+            } else if errorDescription.contains("firebase") {
+                return "Firebase configuration error. Please restart the app."
+            } else {
+                return "An unexpected error occurred: \(error.localizedDescription). Please try again."
+            }
         }
     }
     
     // MARK: - Helper Methods
     private func checkNetworkConnectivity() async -> Bool {
-        // Simple network connectivity check
-        do {
-            let url = URL(string: "https://www.google.com")!
-            let (_, response) = try await URLSession.shared.data(from: url)
-            return (response as? HTTPURLResponse)?.statusCode == 200
-        } catch {
-            return false
+        print("🔍 Checking network connectivity...")
+        
+        // Try multiple URLs to ensure connectivity
+        let testUrls = [
+            "https://www.apple.com",
+            "https://www.google.com", 
+            "https://www.cloudflare.com"
+        ]
+        
+        for urlString in testUrls {
+            do {
+                print("🔍 Testing connectivity with: \(urlString)")
+                let url = URL(string: urlString)!
+                let (_, response) = try await URLSession.shared.data(from: url)
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("✅ Network connectivity confirmed with \(urlString) - Status: \(httpResponse.statusCode)")
+                    return httpResponse.statusCode == 200
+                }
+            } catch {
+                print("❌ Failed to connect to \(urlString): \(error.localizedDescription)")
+                continue
+            }
+        }
+        
+        print("❌ All network connectivity tests failed")
+        return false
+    }
+    
+    // MARK: - Timeout Helper
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw AuthError.timeout
+            }
+            
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
         }
     }
 }
+
+// MARK: - Network Status Structure
+#if os(macOS)
+struct NetworkStatus {
+    var isConnected: Bool = false
+    var canReachFirebase: Bool = false
+    var dnsWorking: Bool = false
+}
+#endif
 
 // MARK: - Apple Sign-In Delegates
 #if os(iOS)
@@ -443,6 +670,7 @@ enum AuthError: Error, LocalizedError {
     case invalidCredential
     case configurationError
     case presentationError
+    case timeout
     
     var errorDescription: String? {
         switch self {
@@ -452,6 +680,8 @@ enum AuthError: Error, LocalizedError {
             return "Configuration error"
         case .presentationError:
             return "Presentation error"
+        case .timeout:
+            return "Operation timed out. Please try again."
         }
     }
 } 

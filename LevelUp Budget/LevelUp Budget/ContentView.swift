@@ -428,6 +428,26 @@ struct BudgetProgressCard: View {
     let progress: Double
     let isOverBudget: Bool
     
+    private var remainingAmount: Double {
+        return monthlyBudget - totalBills
+    }
+    
+    private var percentageSpent: Double {
+        guard monthlyBudget > 0 else { return 0 }
+        return (totalBills / monthlyBudget) * 100
+    }
+    
+    private var remainingColor: Color {
+        let remainingPercentage = 100 - percentageSpent
+        if remainingPercentage > 50 {
+            return .green
+        } else if remainingPercentage > 25 {
+            return .yellow
+        } else {
+            return .red
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -452,6 +472,28 @@ struct BudgetProgressCard: View {
             ProgressView(value: progress)
                 .progressViewStyle(LinearProgressViewStyle(tint: isOverBudget ? Color(red: 1, green: 0.23, blue: 0.19) : Color(red: 0, green: 1, blue: 0.4)))
                 .scaleEffect(x: 1, y: 2, anchor: .center)
+            
+            #if os(macOS)
+            // macOS-specific remaining balance section
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("💰 Remaining Balance")
+                        .font(.subheadline.bold())
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Text("$\(String(format: "%.2f", remainingAmount)) left to spend")
+                        .font(.subheadline.bold())
+                        .foregroundColor(remainingColor)
+                }
+                
+                Text("You've used \(String(format: "%.1f", percentageSpent))% of your $\(String(format: "%.2f", monthlyBudget)) budget")
+                    .font(.caption)
+                    .foregroundColor(.gray.opacity(0.8))
+            }
+            .padding(.top, 8)
+            #endif
         }
         .padding()
         .background(Color.gray.opacity(0.1))
@@ -484,7 +526,7 @@ struct BillsSummarySection: View {
     }
     
     var upcomingCount: Int {
-        bills.filter { !$0.isPaid && $0.daysUntilDue > 0 && $0.daysUntilDue <= 30 }.count
+        bills.filter { !$0.isPaid && $0.daysUntilDue >= 0 && $0.daysUntilDue <= 30 }.count
     }
     
     var filteredBills: [BillItem] {
@@ -498,7 +540,7 @@ struct BillsSummarySection: View {
         case .overdue:
             return bills.filter { $0.isOverdue }
         case .upcoming:
-            return bills.filter { !$0.isPaid && $0.daysUntilDue > 0 && $0.daysUntilDue <= 30 }
+            return bills.filter { !$0.isPaid && $0.daysUntilDue >= 0 && $0.daysUntilDue <= 30 }
         }
     }
     

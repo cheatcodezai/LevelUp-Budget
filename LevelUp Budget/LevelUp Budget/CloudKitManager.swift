@@ -33,9 +33,40 @@ class CloudKitManager: ObservableObject {
     @Published var lastSyncDate: Date?
     @Published var syncError: String?
     
+    // Check if current user is a guest
+    private var isGuestUser: Bool {
+        // Check if the current user ID starts with "guest_"
+        // This is a simple way to identify guest users
+        return false // We'll set this based on the current user
+    }
+    
+    // Method to update guest status based on current user
+    func updateGuestStatus(userId: String?) {
+        let isGuest = userId?.hasPrefix("guest_") ?? false
+        if isGuest {
+            print("ℹ️ Guest user detected - disabling CloudKit operations")
+            DispatchQueue.main.async {
+                self.isCloudKitAvailable = false
+                self.syncError = nil
+            }
+        } else {
+            print("ℹ️ Authenticated user detected - enabling CloudKit operations")
+            // Re-enable CloudKit checks for authenticated users
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.checkCloudKitAvailability()
+            }
+        }
+    }
+    
     private init() {
         // Initialize without immediately checking CloudKit to prevent crashes
         print("🔧 CloudKitManager initialized")
+        
+        // For guest users, don't attempt CloudKit operations
+        if isGuestUser {
+            print("ℹ️ Guest user detected - skipping CloudKit initialization")
+            return
+        }
         
         // Delay the CloudKit availability check to prevent startup crashes
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
@@ -47,6 +78,12 @@ class CloudKitManager: ObservableObject {
     
     /// Check if CloudKit is available and user is signed in
     func checkCloudKitAvailability() {
+        // Skip CloudKit checks for guest users
+        if isGuestUser {
+            print("ℹ️ Skipping CloudKit check for guest user")
+            return
+        }
+        
         guard let container = container else {
             DispatchQueue.main.async {
                 self.isCloudKitAvailable = false
@@ -164,16 +201,25 @@ class CloudKitManager: ObservableObject {
         let query = CKQuery(recordType: billRecordType, predicate: NSPredicate(value: true))
         query.sortDescriptors = [NSSortDescriptor(key: "dueDate", ascending: true)]
         
-        // Perform query using deprecated API
-        database.perform(query, inZoneWith: nil) { [weak self] records, error in
+        // Use the newer fetch method instead of deprecated perform
+        let queryOperation = CKQueryOperation(query: query)
+        var fetchedRecords: [CKRecord] = []
+        
+        queryOperation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success(let record):
+                fetchedRecords.append(record)
+            case .failure(let error):
+                print("❌ Failed to fetch record: \(error.localizedDescription)")
+            }
+        }
+        
+        queryOperation.queryResultBlock = { [weak self] result in
             DispatchQueue.main.async {
-                if let error = error {
-                    print("❌ Failed to fetch bills from CloudKit: \(error.localizedDescription)")
-                    self?.syncError = error.localizedDescription
-                    completion(nil, error)
-                } else {
+                switch result {
+                case .success:
                     // Convert CKRecords to BillItems
-                    let bills = records?.compactMap { record -> BillItem? in
+                    let bills = fetchedRecords.compactMap { record -> BillItem? in
                         guard let name = record["name"] as? String,
                               let amount = record["amount"] as? Double,
                               let dueDate = record["dueDate"] as? Date else {
@@ -201,15 +247,22 @@ class CloudKitManager: ObservableObject {
                         }
                         
                         return bill
-                    } ?? []
+                    }
                     
                     print("✅ Fetched \(bills.count) bills from CloudKit")
                     self?.lastSyncDate = Date()
                     self?.syncError = nil
                     completion(bills, nil)
+                    
+                case .failure(let error):
+                    print("❌ Failed to fetch bills from CloudKit: \(error.localizedDescription)")
+                    self?.syncError = error.localizedDescription
+                    completion(nil, error)
                 }
             }
         }
+        
+        database.add(queryOperation)
     }
     
     // MARK: - Savings Operations
@@ -265,16 +318,25 @@ class CloudKitManager: ObservableObject {
         let query = CKQuery(recordType: savingRecordType, predicate: NSPredicate(value: true))
         query.sortDescriptors = [NSSortDescriptor(key: "targetDate", ascending: true)]
         
-        // Perform query using deprecated API
-        database.perform(query, inZoneWith: nil) { [weak self] records, error in
+        // Use the newer fetch method instead of deprecated perform
+        let queryOperation = CKQueryOperation(query: query)
+        var fetchedRecords: [CKRecord] = []
+        
+        queryOperation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success(let record):
+                fetchedRecords.append(record)
+            case .failure(let error):
+                print("❌ Failed to fetch record: \(error.localizedDescription)")
+            }
+        }
+        
+        queryOperation.queryResultBlock = { [weak self] result in
             DispatchQueue.main.async {
-                if let error = error {
-                    print("❌ Failed to fetch savings goals from CloudKit: \(error.localizedDescription)")
-                    self?.syncError = error.localizedDescription
-                    completion(nil, error)
-                } else {
+                switch result {
+                case .success:
                     // Convert CKRecords to SavingsGoals
-                    let savings = records?.compactMap { record -> SavingsGoal? in
+                    let savings = fetchedRecords.compactMap { record -> SavingsGoal? in
                         guard let goalName = record["goalName"] as? String,
                               let targetAmount = record["targetAmount"] as? Double,
                               let currentAmount = record["currentAmount"] as? Double,
@@ -301,15 +363,22 @@ class CloudKitManager: ObservableObject {
                         }
                         
                         return saving
-                    } ?? []
+                    }
                     
                     print("✅ Fetched \(savings.count) savings goals from CloudKit")
                     self?.lastSyncDate = Date()
                     self?.syncError = nil
                     completion(savings, nil)
+                    
+                case .failure(let error):
+                    print("❌ Failed to fetch savings goals from CloudKit: \(error.localizedDescription)")
+                    self?.syncError = error.localizedDescription
+                    completion(nil, error)
                 }
             }
         }
+        
+        database.add(queryOperation)
     }
     
     // MARK: - Sync Operations

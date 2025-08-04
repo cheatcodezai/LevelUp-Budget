@@ -89,13 +89,15 @@ final class SavingsGoal {
 @Model
 final class UserSettings {
     var monthlyBudget: Double = 2000.0
+    var monthlyIncome: Double = 5000.0
     var notificationsEnabled: Bool = true
     var darkModeEnabled: Bool = false
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
     
-    init(monthlyBudget: Double = 2000.0, notificationsEnabled: Bool = true, darkModeEnabled: Bool = false) {
+    init(monthlyBudget: Double = 2000.0, monthlyIncome: Double = 5000.0, notificationsEnabled: Bool = true, darkModeEnabled: Bool = false) {
         self.monthlyBudget = monthlyBudget
+        self.monthlyIncome = monthlyIncome
         self.notificationsEnabled = notificationsEnabled
         self.darkModeEnabled = darkModeEnabled
         self.createdAt = Date()
@@ -111,7 +113,9 @@ extension BillItem {
     
     var daysUntilDue: Int {
         let calendar = Calendar.current
-        return calendar.dateComponents([.day], from: Date(), to: dueDate).day ?? 0
+        let today = calendar.startOfDay(for: Date())
+        let dueDay = calendar.startOfDay(for: dueDate)
+        return calendar.dateComponents([.day], from: today, to: dueDay).day ?? 0
     }
     
     var statusColor: Color {
