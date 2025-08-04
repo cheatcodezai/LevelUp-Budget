@@ -48,19 +48,64 @@ struct ContentView: View {
     
     var body: some View {
         NavigationStack {
-                        #if os(iOS)
-            if UIDevice.current.userInterfaceIdiom == .pad {
-                // iPad layout
-                iPadTabBarLayout()
-                    .environmentObject(tabStateManager)
-                    .safeAreaInset(edge: .bottom) {
-                        // Add safe area inset to prevent tab bar overlap
-                        Color.clear.frame(height: 0)
+            #if os(iOS)
+            // iOS/iPadOS layout - standard TabView with bottom tab bar
+            TabView(selection: $tabStateManager.currentTab) {
+                MainDashboardView()
+                    .tabItem {
+                        Label("Dashboard", systemImage: "chart.bar.fill")
                     }
-            } else {
-                // iPhone layout - completely separate
-                iPhoneTabView()
-                    .environmentObject(tabStateManager)
+                    .tag(0)
+                
+                BillsListView()
+                    .tabItem {
+                        Label("Bills", systemImage: "list.bullet")
+                    }
+                    .tag(1)
+                
+                SavingsView()
+                    .tabItem {
+                        Label("Savings", systemImage: "banknote.fill")
+                    }
+                    .tag(2)
+                
+                SettingsView()
+                    .tabItem {
+                        Label("Settings", systemImage: "gear")
+                    }
+                    .tag(3)
+            }
+            .accentColor(Color(red: 0, green: 1, blue: 0.4))
+            .environmentObject(tabStateManager)
+            .onChange(of: tabStateManager.currentTab) { oldValue, newValue in
+                tabStateManager.switchTab(to: newValue)
+            }
+            .onAppear {
+                // Configure tab bar appearance immediately for iOS/iPadOS
+                #if os(iOS)
+                let appearance = UITabBarAppearance()
+                appearance.configureWithOpaqueBackground()
+                appearance.backgroundColor = UIColor.black
+                
+                // All states use white text/icons for consistency
+                appearance.stackedLayoutAppearance.normal.iconColor = UIColor.white
+                appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
+                    .foregroundColor: UIColor.white
+                ]
+                
+                appearance.stackedLayoutAppearance.selected.iconColor = UIColor.white
+                appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
+                    .foregroundColor: UIColor.white
+                ]
+                
+                UITabBar.appearance().standardAppearance = appearance
+                UITabBar.appearance().scrollEdgeAppearance = appearance
+                #endif
+                
+                // Ensure initial tab state is correct
+                DispatchQueue.main.async {
+                    tabStateManager.currentTab = 0
+                }
             }
             #else
             // macOS layout - standard TabView
@@ -99,180 +144,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - iPad Tab Bar Layout
-struct iPadTabBarLayout: View {
-    @EnvironmentObject var tabStateManager: TabStateManager
-    
-    var body: some View {
-        // iPad-specific layout with fixed top tab bar
-        VStack(spacing: 0) {
-            // Fixed top tab bar for iPad
-            iPadTabBar(selectedTab: $tabStateManager.currentTab)
-            
-            // Content area with conditional rendering (like iPhone)
-            ZStack {
-                if tabStateManager.currentTab == 0 {
-                    MainDashboardView()
-                } else if tabStateManager.currentTab == 1 {
-                    BillsListView()
-                } else if tabStateManager.currentTab == 2 {
-                    SavingsView()
-                } else if tabStateManager.currentTab == 3 {
-                    SettingsView()
-                }
-            }
-            .animation(.easeInOut(duration: 0.3), value: tabStateManager.currentTab)
-        }
-    }
-}
 
-// MARK: - iPhone Tab View
-struct iPhoneTabView: View {
-    @EnvironmentObject var tabStateManager: TabStateManager
-    
-    var body: some View {
-        // iPhone layout - conditional view rendering to prevent toolbar conflicts
-        VStack(spacing: 0) {
-            // Content area
-            ZStack {
-                if tabStateManager.currentTab == 0 {
-                    MainDashboardView()
-                } else if tabStateManager.currentTab == 1 {
-                    BillsListView()
-                } else if tabStateManager.currentTab == 2 {
-                    SavingsView()
-                } else if tabStateManager.currentTab == 3 {
-                    SettingsView()
-                }
-            }
-            .animation(.easeInOut(duration: 0.3), value: tabStateManager.currentTab)
-            
-            // Custom tab bar
-            iPhoneTabBar(selectedTab: $tabStateManager.currentTab)
-        }
-        .onAppear {
-            #if os(iOS)
-            // Customize tab bar appearance for iOS
-            let appearance = UITabBarAppearance()
-            appearance.configureWithOpaqueBackground()
-            appearance.backgroundColor = UIColor.black
-            
-            // Normal state (inactive)
-            appearance.stackedLayoutAppearance.normal.iconColor = UIColor(red: 0, green: 1, blue: 0.4, alpha: 1.0)
-            appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
-                .foregroundColor: UIColor.white
-            ]
-            
-            // Selected state (active)
-            appearance.stackedLayoutAppearance.selected.iconColor = UIColor(red: 0, green: 1, blue: 0.4, alpha: 1.0)
-            appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
-                .foregroundColor: UIColor(red: 0, green: 1, blue: 0.4, alpha: 1.0)
-            ]
-            
-            UITabBar.appearance().standardAppearance = appearance
-            UITabBar.appearance().scrollEdgeAppearance = appearance
-            #endif
-        }
-    }
-}
-
-// MARK: - iPhone Custom Tab Bar
-struct iPhoneTabBar: View {
-    @Binding var selectedTab: Int
-    
-    private let tabs = [
-        (title: "Dashboard", icon: "chart.bar.fill", tag: 0),
-        (title: "Bills", icon: "list.bullet", tag: 1),
-        (title: "Savings", icon: "banknote.fill", tag: 2),
-        (title: "Settings", icon: "gear", tag: 3)
-    ]
-    
-    var body: some View {
-        HStack(spacing: 0) {
-            // Tab buttons
-            ForEach(tabs, id: \.tag) { tab in
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        selectedTab = tab.tag
-                    }
-                }) {
-                    VStack(spacing: 4) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(selectedTab == tab.tag ? Color(red: 0, green: 1, blue: 0.4) : .white)
-                        
-                        Text(tab.title)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(selectedTab == tab.tag ? Color(red: 0, green: 1, blue: 0.4) : .white)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        Rectangle()
-                            .fill(selectedTab == tab.tag ? Color(red: 0, green: 1, blue: 0.4).opacity(0.1) : Color.clear)
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        }
-        .background(Color.black)
-        .overlay(
-            Rectangle()
-                .frame(height: 1)
-                .foregroundColor(Color.gray.opacity(0.3)),
-            alignment: .bottom
-        )
-    }
-}
-
-// MARK: - iPad Custom Tab Bar
-struct iPadTabBar: View {
-    @Binding var selectedTab: Int
-    
-    private let tabs = [
-        (title: "Dashboard", icon: "chart.bar.fill", tag: 0),
-        (title: "Bills", icon: "list.bullet", tag: 1),
-        (title: "Savings", icon: "banknote.fill", tag: 2),
-        (title: "Settings", icon: "gear", tag: 3)
-    ]
-    
-    var body: some View {
-        HStack(spacing: 0) {
-            // Tab buttons
-            ForEach(tabs, id: \.tag) { tab in
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        selectedTab = tab.tag
-                    }
-                }) {
-                    VStack(spacing: 4) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(selectedTab == tab.tag ? Color(red: 0, green: 1, blue: 0.4) : .white)
-                        
-                        Text(tab.title)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(selectedTab == tab.tag ? Color(red: 0, green: 1, blue: 0.4) : .white)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        Rectangle()
-                            .fill(selectedTab == tab.tag ? Color(red: 0, green: 1, blue: 0.4).opacity(0.1) : Color.clear)
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        }
-        .background(Color.black)
-        .overlay(
-            Rectangle()
-                .frame(height: 1)
-                .foregroundColor(Color.gray.opacity(0.3)),
-            alignment: .bottom
-        )
-    }
-}
 
 struct MainDashboardView: View {
     @Query(sort: \BillItem.dueDate) private var bills: [BillItem]

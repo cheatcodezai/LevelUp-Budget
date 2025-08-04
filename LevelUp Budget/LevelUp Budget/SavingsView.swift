@@ -66,13 +66,16 @@ struct SavingsView: View {
         }
                 .navigationTitle("")
                 .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: { showingAddGoal = true }) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(Color(red: 0, green: 0.8, blue: 0.4))
+            // Only show add button when Savings tab is active
+            if tabStateManager.currentTab == 2 {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: { showingAddGoal = true }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(Color(red: 0, green: 0.8, blue: 0.4))
+                    }
+                    .accessibilityLabel("Add new savings goal")
                 }
-                .accessibilityLabel("Add new savings goal")
             }
         }
         .sheet(isPresented: $showingAddGoal) {
@@ -86,9 +89,11 @@ struct SavingsView: View {
             // Safely check CloudKit availability first
             cloudKitManager.checkCloudKitAvailability()
             
-            // Only sync if CloudKit is available
+            // Only sync if CloudKit is available - with delay to prevent crashes
             if cloudKitManager.isCloudKitAvailable {
-                syncWithCloudKit()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    syncWithCloudKit()
+                }
             }
         }
         #if os(iOS)
@@ -450,8 +455,20 @@ extension SavingsView {
             return
         }
         
+        // Add safety check to prevent crashes with SwiftData
+        guard !savingsGoals.isEmpty else {
+            print("ℹ️ No savings goals to sync")
+            return
+        }
+        
+        // Validate savings goals before syncing
+        let validSavingsGoals = savingsGoals.filter { goal in
+            // Check if the goal has valid data
+            return goal.title.count > 0 && goal.targetAmount > 0
+        }
+        
         // Sync local savings goals to CloudKit
-        cloudKitManager.syncAllDataToCloudKit(bills: [], savings: savingsGoals) { success, error in
+        cloudKitManager.syncAllDataToCloudKit(bills: [], savings: validSavingsGoals) { success, error in
             if success {
                 print("✅ Savings goals synced to CloudKit successfully")
             } else if let error = error {

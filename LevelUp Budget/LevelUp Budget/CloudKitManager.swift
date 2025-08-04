@@ -76,9 +76,16 @@ class CloudKitManager: ObservableObject {
             self.checkCloudKitAvailability()
         }
         
-        // Add immediate availability check for debugging
+        // Add immediate availability check for debugging (iPad optimized)
+        #if os(iOS)
+        DispatchQueue.global(qos: .utility).async {
+            print("🔍 Checking CloudKit availability immediately...")
+            self.checkCloudKitAvailability()
+        }
+        #else
         print("🔍 Checking CloudKit availability immediately...")
         checkCloudKitAvailability()
+        #endif
     }
     
     // MARK: - CloudKit Availability Check
@@ -164,7 +171,7 @@ class CloudKitManager: ObservableObject {
         print("🔍 CloudKit available: \(isCloudKitAvailable)")
         print("🔍 Database available: \(privateDatabase != nil)")
         
-        guard isCloudKitAvailable, let database = privateDatabase else {
+        guard isCloudKitAvailable, let _ = privateDatabase else {
             print("❌ CloudKit not available for bill save")
             completion(false, NSError(domain: "CloudKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "CloudKit not available"]))
             return
@@ -185,7 +192,7 @@ class CloudKitManager: ObservableObject {
         record["updatedAt"] = bill.updatedAt
         
         // Save to CloudKit
-        database.save(record) { [weak self] savedRecord, error in
+        privateDatabase?.save(record) { [weak self] savedRecord, error in
             DispatchQueue.main.async {
                 if let error = error {
                     print("❌ Failed to save bill to CloudKit: \(error.localizedDescription)")
@@ -204,7 +211,7 @@ class CloudKitManager: ObservableObject {
     /// Fetch all bills from CloudKit
     /// - Parameter completion: Completion handler with bills array or error
     func fetchBillsFromCloudKit(completion: @escaping ([BillItem]?, Error?) -> Void) {
-        guard isCloudKitAvailable, let database = privateDatabase else {
+        guard isCloudKitAvailable, let _ = privateDatabase else {
             completion(nil, NSError(domain: "CloudKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "CloudKit not available"]))
             return
         }
@@ -274,7 +281,7 @@ class CloudKitManager: ObservableObject {
             }
         }
         
-        database.add(queryOperation)
+        privateDatabase?.add(queryOperation)
     }
     
     // MARK: - Savings Operations
@@ -390,7 +397,7 @@ class CloudKitManager: ObservableObject {
             }
         }
         
-        database.add(queryOperation)
+        privateDatabase?.add(queryOperation)
     }
     
     // MARK: - Sync Operations
@@ -423,33 +430,43 @@ class CloudKitManager: ObservableObject {
         var billsSynced = 0
         var savingsSynced = 0
         
-        // Sync bills
+        // Sync bills (iPad optimized with background queue)
+        #if os(iOS)
+        let syncQueue = DispatchQueue.global(qos: .utility)
+        #else
+        let syncQueue = DispatchQueue.main
+        #endif
+        
         for bill in bills {
             group.enter()
-            saveBillToCloudKit(bill) { success, error in
-                if success {
-                    billsSynced += 1
-                    print("✅ Synced bill: \(bill.title)")
-                } else if let error = error {
-                    syncErrors.append(error)
-                    print("❌ Failed to sync bill \(bill.title): \(error.localizedDescription)")
+            syncQueue.async {
+                self.saveBillToCloudKit(bill) { success, error in
+                    if success {
+                        billsSynced += 1
+                        print("✅ Synced bill: \(bill.title)")
+                    } else if let error = error {
+                        syncErrors.append(error)
+                        print("❌ Failed to sync bill \(bill.title): \(error.localizedDescription)")
+                    }
+                    group.leave()
                 }
-                group.leave()
             }
         }
         
-        // Sync savings goals
+        // Sync savings goals (iPad optimized with background queue)
         for saving in savings {
             group.enter()
-            saveSavingToCloudKit(saving) { success, error in
-                if success {
-                    savingsSynced += 1
-                    print("✅ Synced savings goal: \(saving.title)")
-                } else if let error = error {
-                    syncErrors.append(error)
-                    print("❌ Failed to sync savings goal \(saving.title): \(error.localizedDescription)")
+            syncQueue.async {
+                self.saveSavingToCloudKit(saving) { success, error in
+                    if success {
+                        savingsSynced += 1
+                        print("✅ Synced savings goal: \(saving.title)")
+                    } else if let error = error {
+                        syncErrors.append(error)
+                        print("❌ Failed to sync savings goal \(saving.title): \(error.localizedDescription)")
+                    }
+                    group.leave()
                 }
-                group.leave()
             }
         }
         
@@ -560,7 +577,7 @@ class CloudKitManager: ObservableObject {
     /// - Returns: Tuple of (merged count, errors)
     private func mergeBills(fetched: [BillItem], local: [BillItem], modelContext: ModelContext) -> (Int, [Error]) {
         var mergedCount = 0
-        var errors: [Error] = []
+        let errors: [Error] = []
         
         print("🔄 Merging bills: \(fetched.count) from CloudKit, \(local.count) local")
         
@@ -609,7 +626,7 @@ class CloudKitManager: ObservableObject {
     /// - Returns: Tuple of (merged count, errors)
     private func mergeSavings(fetched: [SavingsGoal], local: [SavingsGoal], modelContext: ModelContext) -> (Int, [Error]) {
         var mergedCount = 0
-        var errors: [Error] = []
+        let errors: [Error] = []
         
         print("🔄 Merging savings: \(fetched.count) from CloudKit, \(local.count) local")
         
@@ -699,7 +716,7 @@ class CloudKitManager: ObservableObject {
         for (_, duplicateBills) in groupedBills {
             if duplicateBills.count > 1 {
                 let sortedBills = duplicateBills.sorted { $0.updatedAt > $1.updatedAt }
-                let keepBill = sortedBills.first!
+                let _ = sortedBills.first!
                 let deleteBills = Array(sortedBills.dropFirst())
                 
                 for bill in deleteBills {
@@ -718,7 +735,7 @@ class CloudKitManager: ObservableObject {
         for (_, duplicateSavings) in groupedSavings {
             if duplicateSavings.count > 1 {
                 let sortedSavings = duplicateSavings.sorted { $0.updatedAt > $1.updatedAt }
-                let keepSaving = sortedSavings.first!
+                let _ = sortedSavings.first!
                 let deleteSavings = Array(sortedSavings.dropFirst())
                 
                 for saving in deleteSavings {

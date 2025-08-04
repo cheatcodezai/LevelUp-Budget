@@ -1,0 +1,6 @@
+DerivedData/
+build/
+SourcePackages/
+*.xcworkspace
+*.framework
+.DS_Store

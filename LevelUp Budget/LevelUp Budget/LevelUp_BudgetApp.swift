@@ -95,6 +95,28 @@ struct LevelUp_BudgetApp: App {
         WindowGroup {
             AppContentView()
                 .modelContainer(sharedModelContainer)
+                .onAppear {
+                    #if os(iOS)
+                    // Configure tab bar appearance globally - all tabs same color
+                    let appearance = UITabBarAppearance()
+                    appearance.configureWithOpaqueBackground()
+                    appearance.backgroundColor = UIColor.black
+                    
+                    // All states use white text/icons for consistency
+                    appearance.stackedLayoutAppearance.normal.iconColor = UIColor.white
+                    appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
+                        .foregroundColor: UIColor.white
+                    ]
+                    
+                    appearance.stackedLayoutAppearance.selected.iconColor = UIColor.white
+                    appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
+                        .foregroundColor: UIColor.white
+                    ]
+                    
+                    UITabBar.appearance().standardAppearance = appearance
+                    UITabBar.appearance().scrollEdgeAppearance = appearance
+                    #endif
+                }
         }
     }
 }

@@ -68,13 +68,16 @@ struct BillsListView: View {
         }
         .navigationTitle("")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: { showingAddBill = true }) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(Color(red: 0, green: 0.8, blue: 0.4))
+            // Only show add button when Bills tab is active
+            if tabStateManager.currentTab == 1 {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: { showingAddBill = true }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(Color(red: 0, green: 0.8, blue: 0.4))
+                    }
+                    .accessibilityLabel("Add new bill")
                 }
-                .accessibilityLabel("Add new bill")
             }
         }
         .sheet(isPresented: $showingAddBill) {

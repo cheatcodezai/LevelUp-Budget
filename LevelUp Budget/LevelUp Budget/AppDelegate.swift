@@ -10,8 +10,10 @@ import Firebase
 import UserNotifications
 #if os(macOS)
 import AppKit
+import AuthenticationServices
 #elseif os(iOS)
 import UIKit
+import AuthenticationServices
 #endif
 
 #if os(macOS)
@@ -100,23 +102,25 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     }
     
     private func configureFirebase() {
-        do {
-            // Check if Firebase is already configured
-            if FirebaseApp.app() == nil {
-                print("🔧 Configuring Firebase...")
-                FirebaseApp.configure()
-                print("✅ Firebase configured successfully")
-            } else {
-                print("ℹ️ Firebase already configured")
-            }
-        } catch {
-            print("❌ Firebase configuration error: \(error.localizedDescription)")
-            // Don't crash the app if Firebase fails to configure
+        // Check if Firebase is already configured
+        if FirebaseApp.app() == nil {
+            print("🔧 Configuring Firebase...")
+            FirebaseApp.configure()
+            print("✅ Firebase configured successfully")
+        } else {
+            print("ℹ️ Firebase already configured")
         }
     }
     
-    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [String: Any]) {
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [String: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
         print("📱 AppDelegate: Received remote notification")
+        // Handle remote notification
+        completionHandler(.newData)
+    }
+    
+    // Optional method for older iOS versions
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [String: Any]) {
+        print("📱 AppDelegate: Received remote notification (legacy)")
         // Handle remote notification
     }
     
@@ -155,7 +159,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .sound, .badge])
     }
     
-    func applicationDidBecomeActive(_ notification: Notification) {
+    func applicationDidBecomeActive(_ application: UIApplication) {
         print("🚀 AppDelegate: Application did become active")
         // Handle app becoming active
     }

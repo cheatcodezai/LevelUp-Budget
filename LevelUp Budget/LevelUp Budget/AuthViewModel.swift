@@ -12,6 +12,9 @@ import FirebaseAuth
 import GoogleSignIn
 import AuthenticationServices
 import CryptoKit
+#elseif os(macOS)
+import AuthenticationServices
+import CryptoKit
 #endif
 
 @MainActor
@@ -21,7 +24,7 @@ class AuthViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showError = false
     
-    #if os(iOS)
+    #if os(iOS) || os(macOS)
     private var currentNonce: String?
     #endif
     
@@ -189,8 +192,8 @@ class AuthViewModel: ObservableObject {
     }
     
     // MARK: - Apple Sign-In
-    #if os(iOS)
     func signInWithApple() async {
+        #if os(iOS) || os(macOS)
         isLoading = true
         errorMessage = nil
         
@@ -206,8 +209,86 @@ class AuthViewModel: ObservableObject {
         authorizationController.delegate = AppleSignInDelegate(authViewModel: self)
         authorizationController.presentationContextProvider = AppleSignInPresentationContextProvider()
         authorizationController.performRequests()
+        #endif
     }
     
+    // MARK: - Handle SignInWithAppleButton Result
+    func handleAppleSignInResult(_ result: Result<ASAuthorization, Error>) async {
+        #if os(iOS) || os(macOS)
+        switch result {
+        case .success(let authorization):
+            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                await MainActor.run {
+                    self.errorMessage = "Unable to fetch identity token"
+                    self.showError = true
+                    self.isLoading = false
+                }
+                return
+            }
+            
+            guard let nonce = currentNonce else {
+                await MainActor.run {
+                    self.errorMessage = "Invalid state: A login callback was received, but no login request was sent."
+                    self.showError = true
+                    self.isLoading = false
+                }
+                return
+            }
+            
+            guard let appleIDToken = appleIDCredential.identityToken else {
+                await MainActor.run {
+                    self.errorMessage = "Unable to fetch identity token"
+                    self.showError = true
+                    self.isLoading = false
+                }
+                return
+            }
+            
+            guard let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+                await MainActor.run {
+                    self.errorMessage = "Unable to serialize token string from data"
+                    self.showError = true
+                    self.isLoading = false
+                }
+                return
+            }
+            
+            let credential = OAuthProvider.appleCredential(
+                withIDToken: idTokenString,
+                rawNonce: nonce,
+                fullName: appleIDCredential.fullName
+            )
+            
+            do {
+                let result = try await Auth.auth().signIn(with: credential)
+                await MainActor.run {
+                    self.currentUser = User(
+                        id: result.user.uid,
+                        email: result.user.email,
+                        name: result.user.displayName,
+                        authProvider: .apple
+                    )
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = error.localizedDescription
+                    self.showError = true
+                    self.isLoading = false
+                }
+            }
+            
+        case .failure(let error):
+            await MainActor.run {
+                self.errorMessage = error.localizedDescription
+                self.showError = true
+                self.isLoading = false
+            }
+        }
+        #endif
+    }
+    
+    #if os(iOS) || os(macOS)
     private func randomNonceString(length: Int = 32) -> String {
         precondition(length > 0)
         let charset: [Character] =
@@ -249,7 +330,9 @@ class AuthViewModel: ObservableObject {
         
         return hashString
     }
+    #endif
     
+    #if os(iOS) || os(macOS)
     func handleAppleSignInResult(_ result: Result<ASAuthorization, Error>) {
         switch result {
         case .success(let authorization):
@@ -278,9 +361,11 @@ class AuthViewModel: ObservableObject {
                 return
             }
             
-            let credential = OAuthProvider.credential(withProviderID: "apple.com",
-                                                    idToken: idTokenString,
-                                                    rawNonce: nonce)
+            let credential = OAuthProvider.appleCredential(
+                withIDToken: idTokenString,
+                rawNonce: nonce,
+                fullName: appleIDCredential.fullName
+            )
             
             Task {
                 do {
@@ -367,6 +452,18 @@ class AuthViewModel: ObservableObject {
                 self.showError = true
                 self.isLoading = false
             }
+        }
+    }
+    #elseif os(macOS)
+    func signInWithGoogle() async {
+        isLoading = true
+        errorMessage = nil
+        
+        // For macOS, we'll show an error message since Google Sign-In requires additional setup
+        await MainActor.run {
+            self.errorMessage = "Google Sign-In for macOS requires additional configuration. Please use Apple Sign-In or Email Sign-In instead."
+            self.showError = true
+            self.isLoading = false
         }
     }
     #endif
@@ -637,7 +734,7 @@ struct NetworkStatus {
 #endif
 
 // MARK: - Apple Sign-In Delegates
-#if os(iOS)
+#if os(iOS) || os(macOS)
 class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate {
     let authViewModel: AuthViewModel
     
@@ -656,11 +753,18 @@ class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate {
 
 class AppleSignInPresentationContextProvider: NSObject, ASAuthorizationControllerPresentationContextProviding {
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        #if os(iOS)
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first else {
             fatalError("No window found")
         }
         return window
+        #elseif os(macOS)
+        guard let window = NSApplication.shared.windows.first else {
+            fatalError("No window found")
+        }
+        return window
+        #endif
     }
 }
 #endif

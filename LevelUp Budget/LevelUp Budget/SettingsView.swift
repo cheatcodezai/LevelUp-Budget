@@ -358,7 +358,7 @@ struct MonthlyBudgetSection: View {
                         Slider(value: $budgetValue, in: 100...10000, step: 100)
                             .accentColor(Color(red: 0, green: 1, blue: 0.4))
                             .padding(.horizontal, 20)
-                            .onChange(of: budgetValue) { newValue in
+                            .onChange(of: budgetValue) { oldValue, newValue in
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                     settings.monthlyBudget = newValue
                                     settings.updatedAt = Date()
@@ -398,47 +398,48 @@ struct MonthlyBudgetSection: View {
                         .padding(.horizontal, 20)
                     }
                     #else
-                    // Original iOS/iPadOS slider with visual track
-                    // Interactive Slider (functional but invisible)
-                    Slider(value: $budgetValue, in: 100...10000, step: 100)
-                        .accentColor(Color(red: 0, green: 1, blue: 0.4))
-                        .padding(.horizontal, 20)
-                        .onChange(of: budgetValue) { newValue in
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                settings.monthlyBudget = newValue
-                                settings.updatedAt = Date()
+                    // iOS/iPadOS slider matching macOS design
+                    VStack(spacing: 12) {
+                        // Interactive Slider with hover effects
+                        Slider(value: $budgetValue, in: 100...10000, step: 100)
+                            .accentColor(Color(red: 0, green: 1, blue: 0.4))
+                            .padding(.horizontal, 20)
+                            .onChange(of: budgetValue) { oldValue, newValue in
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    settings.monthlyBudget = newValue
+                                    settings.updatedAt = Date()
+                                }
                             }
-                        }
-                    
-                    // Visual track overlay (non-interactive)
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            // Background track
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(height: 8)
+                        
+                        // Simplified tick markers for iOS/iPadOS (matching macOS)
+                        HStack {
+                            Text("$2,500")
+                                .font(.caption2)
+                                .foregroundColor(.gray.opacity(0.6))
                             
-                            // Progress track
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color(red: 0, green: 1, blue: 0.4))
-                                .frame(width: CGFloat((budgetValue - 100) / (10000 - 100)) * (geometry.size.width - 40), height: 8)
+                            Spacer()
                             
-                            // Slider thumb
-                            Circle()
-                                .fill(Color(red: 0, green: 1, blue: 0.4))
-                                .frame(width: 20, height: 20)
-                                .offset(x: CGFloat((budgetValue - 100) / (10000 - 100)) * (geometry.size.width - 40) - 10)
-                                .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                            Text("$5,000")
+                                .font(.caption2)
+                                .foregroundColor(.gray.opacity(0.6))
+                            
+                            Spacer()
+                            
+                            Text("$7,500")
+                                .font(.caption2)
+                                .foregroundColor(.gray.opacity(0.6))
+                            
+                            Spacer()
+                            
+                            Text("$10,000")
+                                .font(.caption2)
+                                .foregroundColor(.gray.opacity(0.6))
                         }
-                        .frame(height: 20)
-                        .allowsHitTesting(false) // Make visual track non-interactive
+                        .padding(.horizontal, 20)
                     }
-                    .frame(height: 20)
-                    .padding(.horizontal, 20)
-                    .offset(y: -20) // Position over the actual slider
                     #endif
                     
-                    // Enhanced labels with visual aids and explanations
+                                        // Enhanced labels with visual aids and explanations
                     VStack(spacing: 12) {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
@@ -450,40 +451,6 @@ struct MonthlyBudgetSection: View {
                                     .font(.caption2)
                                     .foregroundColor(.gray.opacity(0.5))
                             }
-                            
-                            Spacer()
-                            
-                            #if os(iOS) || os(tvOS)
-                            // Budget range indicators with explanations (iOS/iPadOS only)
-                            HStack(spacing: 16) {
-                                VStack(spacing: 2) {
-                                    Text("$2,500")
-                                        .font(.caption2)
-                                        .foregroundColor(.gray.opacity(0.6))
-                                    Text("Low Budget")
-                                        .font(.caption2)
-                                        .foregroundColor(.gray.opacity(0.4))
-                                }
-                                
-                                VStack(spacing: 2) {
-                                    Text("$5,000")
-                                        .font(.caption2)
-                                        .foregroundColor(.gray.opacity(0.6))
-                                    Text("Medium Budget")
-                                        .font(.caption2)
-                                        .foregroundColor(.gray.opacity(0.4))
-                                }
-                                
-                                VStack(spacing: 2) {
-                                    Text("$7,500")
-                                        .font(.caption2)
-                                        .foregroundColor(.gray.opacity(0.6))
-                                    Text("High Budget")
-                                        .font(.caption2)
-                                        .foregroundColor(.gray.opacity(0.4))
-                                }
-                            }
-                            #endif
                             
                             Spacer()
                             
@@ -499,14 +466,12 @@ struct MonthlyBudgetSection: View {
                         }
                         .padding(.horizontal, 20)
                         
-                        #if os(iOS) || os(tvOS)
-                        // Budget explanation (iOS/iPadOS only)
+                        // Budget explanation (matching macOS)
                         Text("Adjust your monthly spending limit. The slider shows typical budget ranges: Low ($2,500), Medium ($5,000), and High ($7,500) for reference.")
                             .font(.caption2)
                             .foregroundColor(.gray.opacity(0.6))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 20)
-                        #endif
                     }
                 }
                 
