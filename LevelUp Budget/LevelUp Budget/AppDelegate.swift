@@ -38,6 +38,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         } else {
             print("ℹ️ Firebase already configured")
         }
+        
+        // Google Sign-In temporarily disabled to prevent crashes
+        // Will be re-enabled in future updates
     }
     
     func application(_ application: NSApplication, didReceiveRemoteNotification userInfo: [String: Any]) {
@@ -110,6 +113,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         } else {
             print("ℹ️ Firebase already configured")
         }
+        
+        // Google Sign-In temporarily disabled to prevent crashes
+        // Will be re-enabled in future updates
     }
     
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [String: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {

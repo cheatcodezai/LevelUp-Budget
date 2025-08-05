@@ -793,4 +793,4 @@ struct LoadingView: View {
 #Preview {
     LoginView()
         .environmentObject(AuthViewModel())
-} 
+}

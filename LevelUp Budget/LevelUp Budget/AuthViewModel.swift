@@ -434,76 +434,111 @@ class AuthViewModel: ObservableObject {
     #endif
     
     // MARK: - Google Sign-In
-    #if os(iOS)
     func signInWithGoogle() async {
         isLoading = true
         errorMessage = nil
         
-        guard let clientID = FirebaseApp.app()?.options.clientID else {
-            errorMessage = "Firebase configuration error"
-            showError = true
-            isLoading = false
-            return
-        }
+        // Temporarily disabled to prevent crashes
+        // Client IDs are kept for future implementation:
+        // iOS: 1081469237130-ae9a022kua43p3bqapebdbvsk0t04rjs.apps.googleusercontent.com
+        // macOS: 1081469237130-9kq78c68mufavifda2etm3p5gqpsovep.apps.googleusercontent.com
         
-        let config = GIDConfiguration(clientID: clientID)
-        GIDSignIn.sharedInstance.configuration = config
-        
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first,
-              let rootViewController = window.rootViewController else {
-            errorMessage = "No root view controller found"
-            showError = true
-            isLoading = false
-            return
-        }
-        
-        do {
-            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
-            
-            guard let idToken = result.user.idToken?.tokenString else {
-                errorMessage = "Unable to get ID token"
-                showError = true
-                isLoading = false
-                return
-            }
-            
-            let credential = GoogleAuthProvider.credential(withIDToken: idToken,
-                                                         accessToken: result.user.accessToken.tokenString)
-            
-            let authResult = try await Auth.auth().signIn(with: credential)
-            
-            await MainActor.run {
-                self.currentUser = User(
-                    id: authResult.user.uid,
-                    email: authResult.user.email,
-                    name: authResult.user.displayName,
-                    authProvider: .google
-                )
-                self.isLoading = false
-            }
-            
-        } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.showError = true
-                self.isLoading = false
-            }
-        }
-    }
-    #elseif os(macOS)
-    func signInWithGoogle() async {
-        isLoading = true
-        errorMessage = nil
-        
-        // For macOS, we'll show an error message since Google Sign-In requires additional setup
         await MainActor.run {
-            self.errorMessage = "Google Sign-In for macOS requires additional configuration. Please use Apple Sign-In or Email Sign-In instead."
+            self.errorMessage = "Google Sign-In coming soon! Please use Sign in with Apple or Email to sign in."
             self.showError = true
             self.isLoading = false
         }
+        
+        // Future implementation will go here:
+        // #if os(iOS)
+        // func signInWithGoogle() async {
+        //     isLoading = true
+        //     errorMessage = nil
+        //     
+        //     guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+        //           let window = windowScene.windows.first,
+        //           let rootViewController = window.rootViewController else {
+        //         errorMessage = "No root view controller found"
+        //         showError = true
+        //         isLoading = false
+        //         return
+        //     }
+        //     
+        //     do {
+        //         // Configure Google Sign-In with the iOS client ID
+        //         let clientID = "1081469237130-ae9a022kua43p3bqapebdbvsk0t04rjs.apps.googleusercontent.com"
+        //         let config = GIDConfiguration(clientID: clientID)
+        //         GIDSignIn.sharedInstance.configuration = config
+        //         print("✅ Google Sign-In client ID set for iOS: \(clientID)")
+        //         
+        //         let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
+        //         
+        //         guard let idToken = result.user.idToken?.tokenString else {
+        //             errorMessage = "Unable to get ID token"
+        //             showError = true
+        //             isLoading = false
+        //             return
+        //         }
+        //         
+        //         let credential = GoogleAuthProvider.credential(withIDToken: idToken,
+        //                                                        accessToken: result.user.accessToken.tokenString)
+        //         
+        //         let authResult = try await Auth.auth().signIn(with: credential)
+        //         print("✅ Google Sign-In successful for iOS: \(authResult.user.email ?? "Unknown")")
+        //         
+        //         await MainActor.run {
+        //             self.isLoading = false
+        //             // The auth state listener will handle setting currentUser
+        //         }
+        //     } catch {
+        //         await MainActor.run {
+        //             print("❌ Google Sign-In error for iOS: \(error.localizedDescription)")
+        //             self.errorMessage = error.localizedDescription
+        //             self.showError = true
+        //             self.isLoading = false
+        //         }
+        //     }
+        // }
+        // #elseif os(macOS)
+        // func signInWithGoogle() async {
+        //     isLoading = true
+        //     errorMessage = nil
+        //     
+        //     // Configure Google Sign-In with the macOS client ID
+        //     let clientID = "1081469237130-9kq78c68mufavifda2etm3p5gqpsovep.apps.googleusercontent.com"
+        //     let config = GIDConfiguration(clientID: clientID)
+        //     GIDSignIn.sharedInstance.configuration = config
+        //     
+        //     // Get the main window for macOS
+        //     guard let window = NSApplication.shared.windows.first else {
+        //         errorMessage = "No main window found"
+        //         showError = true
+        //         isLoading = false
+        //         return
+        //     }
+        //     
+        //     let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: window)
+        //     
+        //     guard let idToken = result.user.idToken?.tokenString else {
+        //         errorMessage = "Unable to get ID token"
+        //         showError = true
+        //         isLoading = false
+        //         return
+        //     }
+        //     
+        //     let credential = GoogleAuthProvider.credential(withIDToken: idToken,
+        //                                                    accessToken: result.user.accessToken.tokenString)
+        //     
+        //     let authResult = try await Auth.auth().signIn(with: credential)
+        //     print("✅ Google Sign-In successful for macOS: \(authResult.user.email ?? "Unknown")")
+        //     
+        //     await MainActor.run {
+        //         self.isLoading = false
+        //         // The auth state listener will handle setting currentUser
+        //     }
+        // }
+        // #endif
     }
-    #endif
     
     // MARK: - Guest Sign-In
     func signInAsGuest() async {

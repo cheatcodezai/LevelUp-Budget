@@ -416,6 +416,8 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = GoogleSignIn;\n    CFBundleURLSchemes =     (\n        \"com.googleusercontent.apps.1081469237130-ae9a022kua43p3bqapebdbvsk0t04rjs\",\n        \"com.googleusercontent.apps.1081469237130\"\n    );\n} {\n    CFBundleURLName = AppleSignIn;\n    CFBundleURLSchemes =     (\n        \"CheatCodez.LevelUp-Budget\"\n    );\n}";
+				INFOPLIST_KEY_GIDClientID = "1081469237130-ae9a022kua43p3bqapebdbvsk0t04rjs.apps.googleusercontent.com";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -455,6 +457,8 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = GoogleSignIn;\n    CFBundleURLSchemes =     (\n        \"com.googleusercontent.apps.1081469237130-ae9a022kua43p3bqapebdbvsk0t04rjs\",\n        \"com.googleusercontent.apps.1081469237130\"\n    );\n} {\n    CFBundleURLName = AppleSignIn;\n    CFBundleURLSchemes =     (\n        \"CheatCodez.LevelUp-Budget\"\n    );\n}";
+				INFOPLIST_KEY_GIDClientID = "1081469237130-ae9a022kua43p3bqapebdbvsk0t04rjs.apps.googleusercontent.com";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -465,20 +469,6 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_CFBundleURLTypes = (
-					{
-						CFBundleURLName = "GoogleSignIn";
-						CFBundleURLSchemes = (
-							"com.googleusercontent.apps.1081469237130-ae9a022kua43p3bqapebdbvsk0t04rjs"
-						);
-					},
-					{
-						CFBundleURLName = "AppleSignIn";
-						CFBundleURLSchemes = (
-							"CheatCodez.LevelUp-Budget"
-						);
-					}
-				);
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
