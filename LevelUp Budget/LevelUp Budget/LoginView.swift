@@ -80,16 +80,18 @@ struct LoginView: View {
                 VStack(spacing: 16) {
                     // Apple Sign-In Button (iOS and macOS)
                     #if os(iOS)
-                    SignInWithAppleButton(.signIn, onRequest: { request in
-                        request.requestedScopes = [.fullName, .email]
-                    }, onCompletion: { result in
-                        Task {
-                            await authViewModel.handleAppleSignInResult(result)
+                    EnhancedSignInButton(
+                        icon: "applelogo",
+                        text: "Sign in with Apple",
+                        backgroundColor: .white,
+                        foregroundColor: .black,
+                        action: {
+                            print("🔐 Apple Sign-In button tapped")
+                            Task {
+                                await authViewModel.signInWithApple()
+                            }
                         }
-                    })
-                    .signInWithAppleButtonStyle(.black)
-                    .frame(height: 50)
-                    .frame(maxWidth: UIDevice.current.userInterfaceIdiom == .pad ? 400 : .infinity)
+                    )
                     #elseif os(macOS)
                     // macOS Apple Sign-In button with matching styling
                     EnhancedSignInButton(
@@ -111,8 +113,8 @@ struct LoginView: View {
                     EnhancedSignInButton(
                         icon: "globe",
                         text: "Sign in with Google",
-                        backgroundColor: .white,
-                        foregroundColor: .black,
+                        backgroundColor: Color.blue,
+                        foregroundColor: .white,
                         action: {
                             print("🔐 Google Sign-In button tapped")
                             Task {
@@ -141,8 +143,8 @@ struct LoginView: View {
                     EnhancedSignInButton(
                         icon: "envelope",
                         text: "Sign in with Email",
-                        backgroundColor: .white,
-                        foregroundColor: .black,
+                        backgroundColor: Color.gray,
+                        foregroundColor: .white,
                         action: {
                             print("🔐 Email Sign-In button tapped")
                             showingEmailSignIn = true
@@ -181,8 +183,8 @@ struct LoginView: View {
                     EnhancedSignInButton(
                         icon: "person.crop.circle",
                         text: "Continue without signing in",
-                        backgroundColor: Color.gray.opacity(0.2),
-                        foregroundColor: .white,
+                        backgroundColor: Color.clear,
+                        foregroundColor: .gray,
                         action: {
                             print("🔐 Guest Sign-In button tapped")
                             Task {

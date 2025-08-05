@@ -336,7 +336,7 @@ struct BudgetProgressCard: View {
                     Text("Monthly Income")
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                     Text(monthlyIncome, format: .currency(code: "USD"))
                         .font(.title)
                         .fontWeight(.bold)
@@ -360,7 +360,7 @@ struct BudgetProgressCard: View {
                 Text("You've used \(percentageSpent, format: .percent.precision(.fractionLength(1))) of your income")
                     .font(.subheadline)
                     .fontWeight(.medium)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.gray.opacity(0.8))
 
                 HStack {
                     Text(remainingAmount, format: .currency(code: "USD"))
@@ -369,7 +369,7 @@ struct BudgetProgressCard: View {
                         .foregroundColor(.green)
                     Text("left to spend")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.gray.opacity(0.8))
                 }
             }
         }
@@ -418,7 +418,7 @@ struct HealthBarBudgetCard: View {
                 Text("You've used \(Int(percentageUsed))% of your income")
                     .font(.subheadline)
                     .fontWeight(.medium)
-                    .foregroundColor(isOverBudget ? Color(red: 1, green: 0.23, blue: 0.19) : .white)
+                    .foregroundColor(.gray.opacity(0.8))
                     .multilineTextAlignment(.trailing)
             }
             
