@@ -329,49 +329,49 @@ struct BudgetProgressCard: View {
             isOverBudget: isOverBudget
         )
         #else
-        // iOS: Keep the existing implementation
+        // iOS/iPadOS: Use the same health bar style as macOS
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Monthly Budget")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    
-                    Text("$\(String(format: "%.2f", totalBills)) of $\(String(format: "%.2f", monthlyIncome))")
-                        .font(.subheadline)
-                        .foregroundColor(.gray.opacity(0.8))
+                    Text("Monthly Income")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    Text(monthlyIncome, format: .currency(code: "USD"))
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
                 }
-                
                 Spacer()
-                
-                Text("\(Int(progress * 100))%")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(isOverBudget ? Color(red: 1, green: 0.23, blue: 0.19) : .white)
+                Image(systemName: "dollarsign.circle.fill")
+                    .font(.largeTitle)
+                    .foregroundColor(.green)
             }
-            
-            ProgressView(value: progress)
-                .progressViewStyle(LinearProgressViewStyle(tint: isOverBudget ? Color(red: 1, green: 0.23, blue: 0.19) : Color(red: 0, green: 1, blue: 0.4)))
-                .scaleEffect(x: 1, y: 2, anchor: .center)
-            
-            VStack(alignment: .leading, spacing: 8) {
+
+            // Progress Bar
+            BudgetProgressBar(
+                spent: totalBills,
+                total: monthlyIncome
+            )
+            .frame(height: 20)
+
+            // Overlay Text
+            VStack(alignment: .leading) {
+                Text("You've used \(percentageSpent, format: .percent.precision(.fractionLength(1))) of your income")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+
                 HStack {
-                    Text("💰 Remaining Balance")
-                        .font(.subheadline.bold())
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    Text("$\(String(format: "%.2f", remainingAmount)) left to spend")
-                        .font(.subheadline.bold())
-                        .foregroundColor(remainingColor)
+                    Text(remainingAmount, format: .currency(code: "USD"))
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
+                    Text("left to spend")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-                
-                Text("You've used \(String(format: "%.1f", percentageSpent))% of your $\(String(format: "%.2f", monthlyIncome)) income")
-                    .font(.caption)
-                    .foregroundColor(.gray.opacity(0.8))
             }
-            .padding(.top, 8)
         }
         .padding()
         .background(Color.gray.opacity(0.1))
