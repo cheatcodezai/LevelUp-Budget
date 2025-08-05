@@ -265,52 +265,19 @@ struct BrandHeaderView: View {
 // MARK: - Monthly Budget Section with Visual Aids
 struct MonthlyBudgetSection: View {
     let settings: UserSettings
-    @State private var budgetValue: Double
     @State private var incomeValue: Double
     @State private var isEditingIncome = false
-    @State private var showingCustomBudgetInput = false
-    @State private var customBudgetValue: String = ""
+    @State private var showingCustomIncomeInput = false
+    @State private var customIncomeValue: String = ""
     
     init(settings: UserSettings) {
         self.settings = settings
-        self._budgetValue = State(initialValue: settings.monthlyBudget)
         self._incomeValue = State(initialValue: settings.monthlyIncome)
-    }
-    
-    private var budgetPercentage: Double {
-        guard incomeValue > 0 else { return 0 }
-        return (budgetValue / incomeValue) * 100
-    }
-    
-    private var budgetFeedback: String {
-        if budgetPercentage <= 30 {
-            return "Excellent balance"
-        } else if budgetPercentage <= 50 {
-            return "Good balance"
-        } else if budgetPercentage <= 70 {
-            return "Moderate spending"
-        } else if budgetPercentage <= 90 {
-            return "High spending"
-        } else {
-            return "Over budget"
-        }
-    }
-    
-    private var feedbackColor: Color {
-        if budgetPercentage <= 30 {
-            return .green
-        } else if budgetPercentage <= 50 {
-            return Color(red: 0, green: 1, blue: 0.4)
-        } else if budgetPercentage <= 70 {
-            return .orange
-        } else {
-            return .red
-        }
     }
     
     var body: some View {
         VStack(spacing: 0) {
-            // Budget Controls Section
+            // Income Controls Section
             VStack(spacing: 0) {
                 // Section header with icon
                 HStack {
@@ -318,7 +285,7 @@ struct MonthlyBudgetSection: View {
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(Color(red: 0, green: 1, blue: 0.4).opacity(0.7))
                     
-                    Text("Budget Controls")
+                    Text("Income Controls")
                         .font(.subheadline.bold())
                         .foregroundColor(.gray.opacity(0.8))
                     Spacer()
@@ -327,19 +294,30 @@ struct MonthlyBudgetSection: View {
                 .padding(.top, 16)
                 .padding(.bottom, 12)
                 
-                // Budget Display with rounded background
+                // Clickable Income Display with rounded background
                 HStack {
                     Spacer()
                     
-                    Text("$\(String(format: "%.0f", budgetValue))")
-                        .font(.title2.bold())
-                        .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.15))
-                        )
+                    Button(action: {
+                        showingCustomIncomeInput = true
+                    }) {
+                        Text("$\(String(format: "%.0f", incomeValue))")
+                            .font(.title2.bold())
+                            .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.15))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color(red: 0, green: 1, blue: 0.4).opacity(0.3), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .scaleEffect(1.0)
+                    .animation(.easeInOut(duration: 0.2), value: incomeValue)
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
@@ -349,18 +327,18 @@ struct MonthlyBudgetSection: View {
                 )
                 .padding(.horizontal, 20)
                 
-                // Enhanced Budget Slider with Visual Aids
+                // Enhanced Income Slider with Visual Aids
                 VStack(spacing: 16) {
                     #if os(macOS)
                     // Simplified macOS slider
                     VStack(spacing: 12) {
                         // Interactive Slider with hover effects
-                        Slider(value: $budgetValue, in: 100...10000, step: 100)
+                        Slider(value: $incomeValue, in: 1000...20000, step: 500)
                             .accentColor(Color(red: 0, green: 1, blue: 0.4))
                             .padding(.horizontal, 20)
-                            .onChange(of: budgetValue) { oldValue, newValue in
+                            .onChange(of: incomeValue) { oldValue, newValue in
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    settings.monthlyBudget = newValue
+                                    settings.monthlyIncome = newValue
                                     settings.updatedAt = Date()
                                 }
                             }
@@ -373,59 +351,46 @@ struct MonthlyBudgetSection: View {
                         
                         // Simplified tick markers for macOS
                         HStack {
-                            Text("$2,500")
-                                .font(.caption2)
-                                .foregroundColor(.gray.opacity(0.6))
-                            
-                            Spacer()
-                            
                             Text("$5,000")
                                 .font(.caption2)
                                 .foregroundColor(.gray.opacity(0.6))
                             
                             Spacer()
                             
-                            Text("$7,500")
+                            Text("$10,000")
                                 .font(.caption2)
                                 .foregroundColor(.gray.opacity(0.6))
                             
                             Spacer()
                             
-                            Text("$10,000")
+                            Text("$15,000")
+                                .font(.caption2)
+                                .foregroundColor(.gray.opacity(0.6))
+                            
+                            Spacer()
+                            
+                            Text("$20,000")
                                 .font(.caption2)
                                 .foregroundColor(.gray.opacity(0.6))
                         }
                         .padding(.horizontal, 20)
                     }
                     #else
-                    // iOS/iPadOS slider matching macOS design
+                    // iOS slider implementation
                     VStack(spacing: 12) {
-                        // Interactive Slider with hover effects
-                        Slider(value: $budgetValue, in: 100...10000, step: 100)
+                        Slider(value: $incomeValue, in: 1000...20000, step: 500)
                             .accentColor(Color(red: 0, green: 1, blue: 0.4))
                             .padding(.horizontal, 20)
-                            .onChange(of: budgetValue) { oldValue, newValue in
+                            .onChange(of: incomeValue) { oldValue, newValue in
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    settings.monthlyBudget = newValue
+                                    settings.monthlyIncome = newValue
                                     settings.updatedAt = Date()
                                 }
                             }
                         
-                        // Simplified tick markers for iOS/iPadOS (matching macOS)
+                        // Tick markers for iOS
                         HStack {
-                            Text("$2,500")
-                                .font(.caption2)
-                                .foregroundColor(.gray.opacity(0.6))
-                            
-                            Spacer()
-                            
                             Text("$5,000")
-                                .font(.caption2)
-                                .foregroundColor(.gray.opacity(0.6))
-                            
-                            Spacer()
-                            
-                            Text("$7,500")
                                 .font(.caption2)
                                 .foregroundColor(.gray.opacity(0.6))
                             
@@ -434,144 +399,60 @@ struct MonthlyBudgetSection: View {
                             Text("$10,000")
                                 .font(.caption2)
                                 .foregroundColor(.gray.opacity(0.6))
+                            
+                            Spacer()
+                            
+                            Text("$15,000")
+                                .font(.caption2)
+                                .foregroundColor(.gray.opacity(0.6))
+                            
+                            Spacer()
+                            
+                            Text("$20,000")
+                                .font(.caption2)
+                                .foregroundColor(.gray.opacity(0.6))
                         }
                         .padding(.horizontal, 20)
                     }
                     #endif
-                    
-                                        // Enhanced labels with visual aids and explanations
-                    VStack(spacing: 12) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("$100")
-                                    .font(.footnote)
-                                    .foregroundColor(.gray.opacity(0.7))
-                                
-                                Text("Minimum")
-                                    .font(.caption2)
-                                    .foregroundColor(.gray.opacity(0.5))
-                            }
-                            
-                            Spacer()
-                            
-                            VStack(alignment: .trailing, spacing: 4) {
-                                Text("$10,000")
-                                    .font(.footnote)
-                                    .foregroundColor(.gray.opacity(0.7))
-                                
-                                Text("Maximum")
-                                    .font(.caption2)
-                                    .foregroundColor(.gray.opacity(0.5))
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        // Budget explanation (matching macOS)
-                        Text("Adjust your monthly spending limit. The slider shows typical budget ranges: Low ($2,500), Medium ($5,000), and High ($7,500) for reference.")
-                            .font(.caption2)
-                            .foregroundColor(.gray.opacity(0.6))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 20)
-                    }
-                }
-                
-                // Custom Budget Mode Button (when budget > $10,000)
-                if budgetValue > 10000 {
-                    Button(action: {
-                        customBudgetValue = String(format: "%.0f", budgetValue)
-                        showingCustomBudgetInput = true
-                    }) {
-                        HStack {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
-                            
-                            Text("Custom Budget Mode")
-                                .font(.subheadline.bold())
-                                .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.1))
-                        )
-                    }
-                    .padding(.top, 8)
                 }
                 
                 Divider()
                     .background(Color.gray.opacity(0.2))
                     .padding(.vertical, 16)
                 
-                // Monthly Income Section
-                VStack(spacing: 12) {
+                // Help text (optional)
+                VStack(spacing: 8) {
                     HStack {
-                        Text("Monthly Income")
-                            .font(.subheadline.bold())
-                            .foregroundColor(.white)
+                        Text("💡 Tip: Click the amount above to enter a custom value")
+                            .font(.caption)
+                            .foregroundColor(.gray.opacity(0.6))
                         
                         Spacer()
-                        
-                        Button(action: {
-                            isEditingIncome = true
-                        }) {
-                            Text("$\(String(format: "%.0f", incomeValue))")
-                                .font(.subheadline.bold())
-                                .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.1))
-                                )
-                        }
                     }
                     .padding(.horizontal, 20)
-                    
-                    // Budget Percentage and Feedback
-                    VStack(spacing: 8) {
-                        HStack {
-                            Text("You're budgeting \(String(format: "%.0f", budgetPercentage))% of your income")
-                                .font(.caption)
-                                .foregroundColor(.gray.opacity(0.8))
-                            
-                            Spacer()
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        HStack {
-                            Text(budgetFeedback)
-                                .font(.caption.bold())
-                                .foregroundColor(feedbackColor)
-                            
-                            Spacer()
-                        }
-                        .padding(.horizontal, 20)
-                    }
                 }
                 .padding(.bottom, 16)
             }
         }
-        .sheet(isPresented: $isEditingIncome) {
-            IncomeEditView(incomeValue: $incomeValue, settings: settings)
-        }
-        .alert("Custom Budget", isPresented: $showingCustomBudgetInput) {
-            TextField("Enter budget amount", text: $customBudgetValue)
+        .alert("Custom Income", isPresented: $showingCustomIncomeInput) {
+            TextField("Enter income amount", text: $customIncomeValue)
                 #if os(iOS)
                 .keyboardType(.numberPad)
                 #endif
             
             Button("Cancel", role: .cancel) { }
-            Button("Set Budget") {
-                if let newValue = Double(customBudgetValue), newValue >= 100 {
-                    budgetValue = newValue
-                    settings.monthlyBudget = newValue
-                    settings.updatedAt = Date()
+            Button("Set Income") {
+                if let newValue = Double(customIncomeValue), newValue >= 1000 {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        incomeValue = newValue
+                        settings.monthlyIncome = newValue
+                        settings.updatedAt = Date()
+                    }
                 }
             }
         } message: {
-            Text("Enter your custom monthly budget amount:")
+            Text("Enter your custom monthly income amount:")
         }
     }
 }

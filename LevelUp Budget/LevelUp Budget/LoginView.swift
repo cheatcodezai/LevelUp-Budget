@@ -95,8 +95,8 @@ struct LoginView: View {
                     EnhancedSignInButton(
                         icon: "applelogo",
                         text: "Sign in with Apple",
-                        backgroundColor: Color.black,
-                        foregroundColor: .white,
+                        backgroundColor: Color.white,
+                        foregroundColor: .black,
                         action: {
                             print("🔐 Apple Sign-In button tapped")
                             Task {

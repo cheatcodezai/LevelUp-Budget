@@ -183,12 +183,12 @@ struct MainDashboardView: View {
     }
     
     var budgetProgress: Double {
-        guard settings.monthlyBudget > 0 else { return 0 }
-        return min(totalBills / settings.monthlyBudget, 1.0)
+        guard settings.monthlyIncome > 0 else { return 0 }
+        return min(totalBills / settings.monthlyIncome, 1.0)
     }
     
     var isOverBudget: Bool {
-        totalBills > settings.monthlyBudget
+        totalBills > settings.monthlyIncome
     }
     
     var upcomingBills: [BillItem] {
@@ -256,7 +256,7 @@ struct MainDashboardView: View {
                     BudgetProgressCard(
                         totalBills: totalBills,
                         paidBills: paidBills,
-                        monthlyBudget: settings.monthlyBudget,
+                        monthlyIncome: settings.monthlyIncome,
                         progress: budgetProgress,
                         isOverBudget: isOverBudget
                     )
@@ -296,17 +296,17 @@ struct MainDashboardView: View {
 struct BudgetProgressCard: View {
     let totalBills: Double
     let paidBills: Double
-    let monthlyBudget: Double
+    let monthlyIncome: Double
     let progress: Double
     let isOverBudget: Bool
     
     private var remainingAmount: Double {
-        return monthlyBudget - totalBills
+        return monthlyIncome - totalBills
     }
     
     private var percentageSpent: Double {
-        guard monthlyBudget > 0 else { return 0 }
-        return (totalBills / monthlyBudget) * 100
+        guard monthlyIncome > 0 else { return 0 }
+        return (totalBills / monthlyIncome) * 100
     }
     
     private var remainingColor: Color {
@@ -321,6 +321,15 @@ struct BudgetProgressCard: View {
     }
     
     var body: some View {
+        #if os(macOS)
+        // macOS: Use the new health bar style
+        HealthBarBudgetCard(
+            totalBills: totalBills,
+            monthlyIncome: monthlyIncome,
+            isOverBudget: isOverBudget
+        )
+        #else
+        // iOS: Keep the existing implementation
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
@@ -328,7 +337,7 @@ struct BudgetProgressCard: View {
                         .font(.headline)
                         .foregroundColor(.white)
                     
-                    Text("$\(String(format: "%.2f", totalBills)) of $\(String(format: "%.2f", monthlyBudget))")
+                    Text("$\(String(format: "%.2f", totalBills)) of $\(String(format: "%.2f", monthlyIncome))")
                         .font(.subheadline)
                         .foregroundColor(.gray.opacity(0.8))
                 }
@@ -345,8 +354,6 @@ struct BudgetProgressCard: View {
                 .progressViewStyle(LinearProgressViewStyle(tint: isOverBudget ? Color(red: 1, green: 0.23, blue: 0.19) : Color(red: 0, green: 1, blue: 0.4)))
                 .scaleEffect(x: 1, y: 2, anchor: .center)
             
-            #if os(macOS)
-            // macOS-specific remaining balance section
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("💰 Remaining Balance")
@@ -360,17 +367,152 @@ struct BudgetProgressCard: View {
                         .foregroundColor(remainingColor)
                 }
                 
-                Text("You've used \(String(format: "%.1f", percentageSpent))% of your $\(String(format: "%.2f", monthlyBudget)) budget")
+                Text("You've used \(String(format: "%.1f", percentageSpent))% of your $\(String(format: "%.2f", monthlyIncome)) income")
                     .font(.caption)
                     .foregroundColor(.gray.opacity(0.8))
             }
             .padding(.top, 8)
-            #endif
         }
         .padding()
         .background(Color.gray.opacity(0.1))
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
+        #endif
+    }
+}
+
+// MARK: - Health Bar Budget Card (macOS)
+struct HealthBarBudgetCard: View {
+    let totalBills: Double
+    let monthlyIncome: Double
+    let isOverBudget: Bool
+    
+    private var remainingAmount: Double {
+        return max(0, monthlyIncome - totalBills)
+    }
+    
+    private var percentageUsed: Double {
+        guard monthlyIncome > 0 else { return 0 }
+        return (totalBills / monthlyIncome) * 100
+    }
+    
+    private var percentageRemaining: Double {
+        return max(0, 100 - percentageUsed)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Monthly Income")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Text("$\(String(format: "%.2f", totalBills)) of $\(String(format: "%.2f", monthlyIncome))")
+                        .font(.subheadline)
+                        .foregroundColor(.gray.opacity(0.8))
+                }
+                
+                Spacer()
+                
+                Text("You've used \(Int(percentageUsed))% of your income")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(isOverBudget ? Color(red: 1, green: 0.23, blue: 0.19) : .white)
+                    .multilineTextAlignment(.trailing)
+            }
+            
+            // Health Bar: Green (remaining) on left, Red (spent) on right
+            BudgetProgressBar(
+                spent: totalBills,
+                total: monthlyIncome
+            )
+            .frame(height: 20)
+            
+            // Remaining balance section
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("💰 Remaining Balance")
+                        .font(.subheadline.bold())
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Text("$\(String(format: "%.2f", remainingAmount)) left to spend")
+                        .font(.subheadline.bold())
+                        .foregroundColor(Color(red: 0, green: 0.9, blue: 0.5))
+                }
+                
+                Text("$\(String(format: "%.2f", remainingAmount)) available for additional expenses")
+                    .font(.caption)
+                    .foregroundColor(.gray.opacity(0.8))
+            }
+            .padding(.top, 8)
+        }
+        .padding()
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
+    }
+}
+
+// MARK: - Budget Progress Bar Component
+struct BudgetProgressBar: View {
+    let spent: Double
+    let total: Double
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                // Background bar with subtle gradient
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.gray.opacity(0.2), Color.gray.opacity(0.1)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(height: 20)
+                
+                HStack(spacing: 0) {
+                    // Green bar: Remaining portion (left-aligned)
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0, green: 0.8, blue: 0.4),
+                                    Color(red: 0, green: 0.9, blue: 0.5)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: max(0, geometry.size.width * CGFloat((total - spent) / total)), height: 20)
+                        .shadow(color: Color(red: 0, green: 0.8, blue: 0.4).opacity(0.3), radius: 2, x: 0, y: 1)
+                    
+                    // Red bar: Spent portion (grows from right-to-left)
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 1, green: 0.3, blue: 0.2),
+                                    Color(red: 1, green: 0.2, blue: 0.1)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: max(0, geometry.size.width * CGFloat(spent / total)), height: 20)
+                        .shadow(color: Color(red: 1, green: 0.3, blue: 0.2).opacity(0.3), radius: 2, x: 0, y: 1)
+                }
+            }
+            .frame(height: 20)
+            .clipShape(Capsule())
+            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+            .animation(.easeInOut(duration: 0.4), value: spent)
+        }
+        .frame(height: 20)
     }
 }
 
@@ -428,7 +570,7 @@ struct BillsSummarySection: View {
             ], spacing: 16) {
                 StatCard(
                     title: "Total Bills",
-                    value: "$\(String(format: "%.2f", totalBills))",
+                    value: String(format: "%.2f", totalBills),
                     icon: "dollarsign.circle.fill",
                     color: Color.green.opacity(0.75),
                     isSelected: selectedFilter == .total
@@ -440,7 +582,7 @@ struct BillsSummarySection: View {
                 
                 StatCard(
                     title: "Paid This Month",
-                    value: "$\(String(format: "%.2f", paidBills))",
+                    value: String(format: "%.2f", paidBills),
                     icon: "checkmark.circle.fill",
                     color: Color.green.opacity(0.75),
                     isSelected: selectedFilter == .paid
@@ -582,10 +724,10 @@ struct UpcomingBillRow: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                Text("$\(bill.formattedAmount)")
+                Text(bill.formattedAmount)
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.red)
                 
                 Text(bill.formattedDueDate)
                     .font(.caption)
@@ -660,7 +802,7 @@ struct FilteredBillRow: View {
                     
                     Spacer()
                     
-                    Text("$\(bill.formattedAmount)")
+                    Text(bill.formattedAmount)
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundColor(.blue)
