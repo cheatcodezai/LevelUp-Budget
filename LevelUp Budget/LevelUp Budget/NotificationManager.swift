@@ -78,29 +78,71 @@ class NotificationManager: ObservableObject {
     func scheduleBillReminder(for bill: BillItem) {
         guard !bill.isPaid else { return }
         
-        let content = UNMutableNotificationContent()
-        content.title = "Bill Due Soon"
-        content.body = "\(bill.title) - $\(bill.formattedAmount) is due in \(bill.daysUntilDue) days"
-        content.sound = .default
+        // Cancel any existing notifications for this bill
+        cancelNotification(for: bill)
         
-        // Schedule notification for the due date
+        let calendar = Calendar.current
+        let now = Date()
         let dueDate = bill.dueDate
-        let trigger = UNCalendarNotificationTrigger(
-            dateMatching: Calendar.current.dateComponents([.year, .month, .day], from: dueDate),
-            repeats: false
-        )
         
-        let request = UNNotificationRequest(
-            identifier: "bill-\(bill.title)-\(bill.dueDate.timeIntervalSince1970)",
-            content: content,
-            trigger: trigger
-        )
+        // Calculate days until due
+        let daysUntilDue = calendar.dateComponents([.day], from: now, to: dueDate).day ?? 0
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ Error scheduling notification: \(error)")
-            } else {
-                print("✅ Bill reminder scheduled for: \(bill.title)")
+        // Schedule notification for 1 day before due date
+        if daysUntilDue > 1 {
+            let oneDayBefore = calendar.date(byAdding: .day, value: -1, to: dueDate) ?? dueDate
+            
+            let content = UNMutableNotificationContent()
+            content.title = "Bill Due Tomorrow"
+            content.body = "\(bill.title) - $\(bill.formattedAmount) is due tomorrow"
+            content.sound = .default
+            content.badge = 1
+            
+            let trigger = UNCalendarNotificationTrigger(
+                dateMatching: calendar.dateComponents([.year, .month, .day, .hour, .minute], from: oneDayBefore),
+                repeats: false
+            )
+            
+            let request = UNNotificationRequest(
+                identifier: "bill-reminder-\(bill.title)-\(bill.dueDate.timeIntervalSince1970)",
+                content: content,
+                trigger: trigger
+            )
+            
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    print("❌ Error scheduling 1-day reminder: \(error)")
+                } else {
+                    print("✅ 1-day reminder scheduled for: \(bill.title) on \(oneDayBefore)")
+                }
+            }
+        }
+        
+        // Schedule notification for the due date itself
+        if daysUntilDue >= 0 {
+            let content = UNMutableNotificationContent()
+            content.title = "Bill Due Today"
+            content.body = "\(bill.title) - $\(bill.formattedAmount) is due today!"
+            content.sound = .default
+            content.badge = 1
+            
+            let trigger = UNCalendarNotificationTrigger(
+                dateMatching: calendar.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate),
+                repeats: false
+            )
+            
+            let request = UNNotificationRequest(
+                identifier: "bill-due-\(bill.title)-\(bill.dueDate.timeIntervalSince1970)",
+                content: content,
+                trigger: trigger
+            )
+            
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    print("❌ Error scheduling due date notification: \(error)")
+                } else {
+                    print("✅ Due date notification scheduled for: \(bill.title) on \(dueDate)")
+                }
             }
         }
     }
@@ -108,9 +150,13 @@ class NotificationManager: ObservableObject {
     /// Cancel notification for a specific bill
     /// - Parameter bill: The bill to cancel notifications for
     func cancelNotification(for bill: BillItem) {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(
-            withIdentifiers: ["bill-\(bill.title)-\(bill.dueDate.timeIntervalSince1970)"]
-        )
+        let identifiers = [
+            "bill-reminder-\(bill.title)-\(bill.dueDate.timeIntervalSince1970)",
+            "bill-due-\(bill.title)-\(bill.dueDate.timeIntervalSince1970)"
+        ]
+        
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+        print("🗑️ Cancelled notifications for: \(bill.title)")
     }
     
     /// Schedule reminders for all unpaid bills
@@ -118,6 +164,56 @@ class NotificationManager: ObservableObject {
         // This would be called when the app starts or when bills are updated
         // Implementation would iterate through all unpaid bills and schedule reminders
         print("📅 Scheduling reminders for all unpaid bills...")
+    }
+    
+    /// Schedule notifications for all unpaid bills
+    func scheduleNotificationsForAllBills() {
+        // This function should be called from the main app or when bills are loaded
+        // For now, we'll add a placeholder that can be called from ContentView or App
+        print("📅 Scheduling notifications for all unpaid bills...")
+        
+        // TODO: This would need access to the model context to fetch all bills
+        // Implementation would look something like:
+        // let descriptor = FetchDescriptor<BillItem>(predicate: #Predicate<BillItem> { bill in
+        //     !bill.isPaid
+        // })
+        // let bills = try? modelContext.fetch(descriptor)
+        // bills?.forEach { scheduleBillReminder(for: $0) }
+    }
+    
+    /// Test notification function - sends a notification immediately
+    func sendTestNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Test Notification"
+        content.body = "This is a test notification from LevelUp Budget"
+        content.sound = .default
+        content.badge = 1
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        
+        let request = UNNotificationRequest(
+            identifier: "test-notification-\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: trigger
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Error sending test notification: \(error)")
+            } else {
+                print("✅ Test notification scheduled (will appear in 5 seconds)")
+            }
+        }
+    }
+    
+    /// Get all pending notifications for debugging
+    func getPendingNotifications() {
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            print("📋 Pending notifications: \(requests.count)")
+            for request in requests {
+                print("  - \(request.identifier): \(request.content.title) - \(request.content.body)")
+            }
+        }
     }
     
     /// Check current notification settings

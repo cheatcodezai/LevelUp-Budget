@@ -1099,6 +1099,35 @@ struct FeedbackSection: View {
                     .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(PlainButtonStyle())
+                
+                // Test Notification Button
+                Button(action: {
+                    NotificationManager.shared.sendTestNotification()
+                }) {
+                    HStack {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Test Notification")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.6, green: 0.4, blue: 0.8), // Purple
+                                Color(red: 0.8, green: 0.6, blue: 1.0)  // Light Purple
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
             .padding(.horizontal, 20)
             

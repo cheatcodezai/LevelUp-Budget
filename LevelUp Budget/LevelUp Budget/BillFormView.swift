@@ -415,6 +415,9 @@ struct BillFormView: View {
                 }
             }
             #endif
+            
+            // Schedule notification for updated bill
+            NotificationManager.shared.scheduleBillReminder(for: existingBill)
         } else {
             // Create new bill
             let newBill = BillItem(
@@ -440,6 +443,9 @@ struct BillFormView: View {
                 }
             }
             #endif
+            
+            // Schedule notification for new bill
+            NotificationManager.shared.scheduleBillReminder(for: newBill)
         }
         
         dismiss()
