@@ -64,7 +64,16 @@ struct SettingsView: View {
                                 MonthlyBudgetSection(settings: settings)
                             }
                             
-                            // 2. App Preferences
+                            // 2. Feedback & Support
+                            SettingsCardView(
+                                title: "Feedback & Support",
+                                icon: "paperplane.fill",
+                                iconColor: .blue
+                            ) {
+                                FeedbackSection()
+                            }
+                            
+                            // 3. App Preferences
                             SettingsCardView(
                                 title: "App Preferences",
                                 icon: "gearshape.fill",
@@ -73,7 +82,7 @@ struct SettingsView: View {
                                 AppPreferencesSection(settings: settings)
                             }
                             
-                            // 3. Data Management (separated from Network Diagnostics)
+                            // 4. Data Management (separated from Network Diagnostics)
                             SettingsCardView(
                                 title: "Data Management",
                                 icon: "folder.fill",
@@ -86,7 +95,7 @@ struct SettingsView: View {
                                 )
                             }
                             
-                            // 4. Network Diagnostics (separate card)
+                            // 5. Network Diagnostics (separate card)
                             SettingsCardView(
                                 title: "Network Diagnostics",
                                 icon: "network",
@@ -95,7 +104,7 @@ struct SettingsView: View {
                                 NetworkDiagnosticsSection()
                             }
                             
-                            // 5. Account
+                            // 6. Account
                             SettingsCardView(
                                 title: "Account",
                                 icon: "person.circle.fill",
@@ -996,3 +1005,374 @@ struct ImportView: View {
         }
     }
 } 
+
+// MARK: - Feedback Section
+struct FeedbackSection: View {
+    @State private var showingFeedbackForm = false
+    @State private var showingSuccessMessage = false
+    @State private var isBugReport = false
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            // Header with improved spacing and hierarchy
+            VStack(spacing: 12) {
+                // Icon with better spacing
+                Image(systemName: "paperplane.fill")
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundColor(.blue.opacity(0.8))
+                    .padding(.bottom, 8)
+                
+                // Title with improved typography
+                Text("Send Feedback")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                
+                // Subtitle with better contrast
+                Text("We'd love to hear from you!")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            
+            // Buttons with improved styling and spacing
+            VStack(spacing: 16) {
+                // Send Feedback Button
+                Button(action: {
+                    isBugReport = false
+                    showingFeedbackForm = true
+                }) {
+                    HStack {
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Send Feedback")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.133, green: 0.773, blue: 0.369), // Green
+                                Color(red: 0.25, green: 0.52, blue: 0.95)    // Blue
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Report Bug Button (alternative option)
+                Button(action: {
+                    isBugReport = true
+                    showingFeedbackForm = true
+                }) {
+                    HStack {
+                        Image(systemName: "ladybug.fill")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Report a Bug")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.8, green: 0.2, blue: 0.2), // Red
+                                Color(red: 0.9, green: 0.3, blue: 0.3)  // Light Red
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(.horizontal, 20)
+            
+            Spacer()
+                .frame(height: 20)
+        }
+        .padding(.bottom, 20)
+        .sheet(isPresented: $showingFeedbackForm) {
+            FeedbackFormView(isPresented: $showingFeedbackForm, onSuccess: {
+                showingSuccessMessage = true
+            }, isBugReport: isBugReport)
+        }
+        .alert("✅ Thank you for your feedback!", isPresented: $showingSuccessMessage) {
+            Button("OK") { }
+        } message: {
+            Text("Our team will review your message and respond if needed.")
+        }
+    }
+} 
+
+// MARK: - Feedback Form View
+struct FeedbackFormView: View {
+    @Binding var isPresented: Bool
+    let onSuccess: () -> Void
+    let isBugReport: Bool
+    
+    @State private var subject: String = ""
+    @State private var message: String = ""
+    @State private var userEmail: String = ""
+    @State private var isSubmitting = false
+    @State private var showingError = false
+    @State private var errorMessage = ""
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                // Dark background
+                Color.black.ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    // Header with logo
+                    VStack(spacing: 16) {
+                        // App Logo/Icon
+                        Image(systemName: "dollarsign.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(.green)
+                            .padding(.top, 20)
+                        
+                        // Title
+                        Text(isBugReport ? "Report a Bug" : "Send Feedback")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                        
+                        // Subtitle
+                        Text(isBugReport ? "Help us fix issues in LevelUp Budget" : "Help us improve LevelUp Budget")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 32)
+                    
+                    // Form Content
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            // Subject Field
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Subject")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.white)
+                                
+                                TextField(isBugReport ? "Brief description of the bug" : "Brief description of your feedback", text: $subject)
+                                    .textFieldStyle(CustomTextFieldStyle())
+                                    #if os(iOS)
+                                    .keyboardType(.default)
+                                    .autocapitalization(.sentences)
+                                    #endif
+                            }
+                            
+                            // Message Field
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Message")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.white)
+                                
+                                #if os(macOS)
+                                TextEditor(text: $message)
+                                    .frame(minHeight: 120)
+                                    .padding(12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    )
+                                #else
+                                TextEditor(text: $message)
+                                    .frame(minHeight: 120)
+                                    .padding(12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    )
+                                #endif
+                            }
+                            
+                            // Optional Email Field
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Your Email (Optional)")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.white)
+                                
+                                TextField("your@email.com", text: $userEmail)
+                                    .textFieldStyle(CustomTextFieldStyle())
+                                    #if os(iOS)
+                                    .keyboardType(.emailAddress)
+                                    .autocapitalization(.none)
+                                    #endif
+                            }
+                            
+                            // Sender Info
+                            HStack {
+                                Text("From: admin@cheatcodezai.com")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 4)
+                        }
+                        .padding(.horizontal, 32)
+                        .padding(.top, 32)
+                    }
+                    
+                    // Action Buttons
+                    HStack(spacing: 16) {
+                        Button("Cancel") {
+                            isPresented = false
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.gray.opacity(0.3))
+                        )
+                        .foregroundColor(.white)
+                        
+                        Button(isSubmitting ? "Submitting..." : "Submit") {
+                            sendFeedback()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(isSubmitting ? Color.gray : Color.blue)
+                        )
+                        .foregroundColor(.white)
+                        .disabled(isSubmitting)
+                    }
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 32)
+                }
+            }
+            .navigationTitle("")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                }
+            }
+        }
+        .alert("Error", isPresented: $showingError) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage)
+        }
+    }
+    
+    private func sendFeedback() {
+        isSubmitting = true
+        
+        let subject = isBugReport ? "LevelUp Budget Bug Report - macOS" : "LevelUp Budget Feedback - macOS"
+        let body = """
+        --- \(isBugReport ? "BUG REPORT" : "FEEDBACK REPORT") START ---
+        Platform: macOS
+        App Version: 1.0.0
+        \(isBugReport ? "Bug Type" : "Feedback Type"): \(subject.isEmpty ? "General" : subject)
+        
+        Details:
+        \(message.isEmpty ? "No message provided" : message)
+        
+        User Email: \(userEmail.isEmpty ? "Not provided" : userEmail)
+        --- \(isBugReport ? "BUG REPORT" : "FEEDBACK REPORT") END ---
+        """
+        
+        let mailtoURL = "mailto:cheatcodezai@gmail.com?subject=\(subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&body=\(body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+        
+        if let url = URL(string: mailtoURL) {
+            #if os(macOS)
+            NSWorkspace.shared.open(url)
+            #endif
+            isPresented = false
+            onSuccess()
+        } else {
+            errorMessage = "Failed to create email. Please contact admin@cheatcodezai.com directly."
+            showingError = true
+        }
+        
+        isSubmitting = false
+    }
+}
+
+// MARK: - Custom Text Field Style
+struct CustomTextFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+            )
+            .foregroundColor(.white)
+    }
+}
+
+// MARK: - Button Styles
+struct CancelButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.bold())
+            .foregroundColor(.gray)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.gray.opacity(0.1))
+            )
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+struct SubmitButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.bold())
+            .foregroundColor(.white)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0, green: 0.6, blue: 1.0),
+                                Color(red: 0, green: 0.4, blue: 0.8)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+} 
+
