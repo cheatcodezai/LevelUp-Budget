@@ -26,6 +26,9 @@ class AuthViewModel: ObservableObject {
     
     #if os(iOS) || os(macOS)
     private var currentNonce: String?
+    private var authorizationController: ASAuthorizationController?
+    private var appleSignInDelegate: AppleSignInDelegate?
+    private var appleSignInPresentationContextProvider: AppleSignInPresentationContextProvider?
     #endif
     
     init() {
@@ -194,30 +197,57 @@ class AuthViewModel: ObservableObject {
     // MARK: - Apple Sign-In
     func signInWithApple() async {
         #if os(iOS) || os(macOS)
-        isLoading = true
-        errorMessage = nil
+        print("🍎 Starting Apple Sign-In process...")
+        await MainActor.run {
+            isLoading = true
+            errorMessage = nil
+        }
         
         let nonce = randomNonceString()
         currentNonce = nonce
+        print("🍎 Generated nonce: \(nonce)")
         
         let appleIDProvider = ASAuthorizationAppleIDProvider()
         let request = appleIDProvider.createRequest()
         request.requestedScopes = [.fullName, .email]
         request.nonce = sha256(nonce)
+        print("🍎 Created Apple ID request with nonce hash: \(sha256(nonce))")
         
         let authorizationController = ASAuthorizationController(authorizationRequests: [request])
-        authorizationController.delegate = AppleSignInDelegate(authViewModel: self)
-        authorizationController.presentationContextProvider = AppleSignInPresentationContextProvider()
+        
+        // Create and retain the delegate and presentation context provider
+        let delegate = AppleSignInDelegate(authViewModel: self)
+        let presentationContextProvider = AppleSignInPresentationContextProvider()
+        
+        authorizationController.delegate = delegate
+        authorizationController.presentationContextProvider = presentationContextProvider
+        
+        // Retain the authorization controller and delegates to prevent deallocation
+        self.authorizationController = authorizationController
+        self.appleSignInDelegate = delegate
+        self.appleSignInPresentationContextProvider = presentationContextProvider
+        
+        print("🍎 Starting authorization requests...")
         authorizationController.performRequests()
         #endif
     }
     
     // MARK: - Handle SignInWithAppleButton Result
     func handleAppleSignInResult(_ result: Result<ASAuthorization, Error>) async {
-        #if os(iOS) || os(macOS)
+        print("🍎 Apple Sign-In result received: \(result)")
+        
+        // Clear all the retained references
+        await MainActor.run {
+            self.authorizationController = nil
+            self.appleSignInDelegate = nil
+            self.appleSignInPresentationContextProvider = nil
+        }
+        
         switch result {
         case .success(let authorization):
+            print("🍎 Apple Sign-In authorization successful")
             guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                print("🍎 Error: Unable to fetch identity token")
                 await MainActor.run {
                     self.errorMessage = "Unable to fetch identity token"
                     self.showError = true
@@ -227,6 +257,7 @@ class AuthViewModel: ObservableObject {
             }
             
             guard let nonce = currentNonce else {
+                print("🍎 Error: Invalid state - no nonce found")
                 await MainActor.run {
                     self.errorMessage = "Invalid state: A login callback was received, but no login request was sent."
                     self.showError = true
@@ -236,6 +267,7 @@ class AuthViewModel: ObservableObject {
             }
             
             guard let appleIDToken = appleIDCredential.identityToken else {
+                print("🍎 Error: Unable to fetch identity token")
                 await MainActor.run {
                     self.errorMessage = "Unable to fetch identity token"
                     self.showError = true
@@ -245,6 +277,7 @@ class AuthViewModel: ObservableObject {
             }
             
             guard let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+                print("🍎 Error: Unable to serialize token string from data")
                 await MainActor.run {
                     self.errorMessage = "Unable to serialize token string from data"
                     self.showError = true
@@ -253,6 +286,7 @@ class AuthViewModel: ObservableObject {
                 return
             }
             
+            print("🍎 Creating Firebase credential with Apple ID token")
             let credential = OAuthProvider.appleCredential(
                 withIDToken: idTokenString,
                 rawNonce: nonce,
@@ -260,7 +294,9 @@ class AuthViewModel: ObservableObject {
             )
             
             do {
+                print("🍎 Signing in to Firebase with Apple credential...")
                 let result = try await Auth.auth().signIn(with: credential)
+                print("🍎 Firebase sign-in successful for user: \(result.user.uid)")
                 await MainActor.run {
                     self.currentUser = User(
                         id: result.user.uid,
@@ -271,6 +307,7 @@ class AuthViewModel: ObservableObject {
                     self.isLoading = false
                 }
             } catch {
+                print("🍎 Firebase sign-in failed: \(error.localizedDescription)")
                 await MainActor.run {
                     self.errorMessage = error.localizedDescription
                     self.showError = true
@@ -279,13 +316,13 @@ class AuthViewModel: ObservableObject {
             }
             
         case .failure(let error):
+            print("🍎 Apple Sign-In failed: \(error.localizedDescription)")
             await MainActor.run {
                 self.errorMessage = error.localizedDescription
                 self.showError = true
                 self.isLoading = false
             }
         }
-        #endif
     }
     
     #if os(iOS) || os(macOS)
@@ -743,26 +780,37 @@ class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate {
     }
     
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        authViewModel.handleAppleSignInResult(.success(authorization))
+        print("🍎 Apple Sign-In delegate: Authorization completed successfully")
+        Task {
+            await authViewModel.handleAppleSignInResult(.success(authorization))
+        }
     }
     
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        authViewModel.handleAppleSignInResult(.failure(error))
+        print("🍎 Apple Sign-In delegate: Authorization failed with error: \(error.localizedDescription)")
+        Task {
+            await authViewModel.handleAppleSignInResult(.failure(error))
+        }
     }
 }
 
 class AppleSignInPresentationContextProvider: NSObject, ASAuthorizationControllerPresentationContextProviding {
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        print("🍎 Apple Sign-In: Getting presentation anchor")
         #if os(iOS)
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first else {
+            print("❌ Apple Sign-In: No window found on iOS")
             fatalError("No window found")
         }
+        print("🍎 Apple Sign-In: Using iOS window for presentation")
         return window
         #elseif os(macOS)
         guard let window = NSApplication.shared.windows.first else {
+            print("❌ Apple Sign-In: No window found on macOS")
             fatalError("No window found")
         }
+        print("🍎 Apple Sign-In: Using macOS window for presentation")
         return window
         #endif
     }

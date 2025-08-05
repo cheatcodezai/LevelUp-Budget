@@ -471,6 +471,12 @@
 						CFBundleURLSchemes = (
 							"com.googleusercontent.apps.1081469237130-ae9a022kua43p3bqapebdbvsk0t04rjs"
 						);
+					},
+					{
+						CFBundleURLName = "AppleSignIn";
+						CFBundleURLSchemes = (
+							"CheatCodez.LevelUp-Budget"
+						);
 					}
 				);
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
