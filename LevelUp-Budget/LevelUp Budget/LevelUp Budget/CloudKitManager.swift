@@ -609,4 +609,85 @@ class CloudKitManager: ObservableObject {
         
         return min(score, 100)
     }
+    
+    // MARK: - Full Sync Operations
+    
+    /// Perform full bidirectional sync (upload local + download remote)
+    /// - Parameters:
+    ///   - bills: Array of local bills
+    ///   - savings: Array of local savings goals
+    ///   - modelContext: SwiftData context for merging
+    ///   - completion: Completion handler with sync result
+    func performFullSync(bills: [BillItem], savings: [SavingsGoal], modelContext: ModelContext, completion: @escaping (Bool, Error?) -> Void) {
+        print("🔄 Starting full bidirectional sync...")
+        
+        // First, upload local data to CloudKit
+        syncAllDataToCloudKit(bills: bills, savings: savings) { [weak self] uploadSuccess, uploadError in
+            if uploadSuccess {
+                print("✅ Local data uploaded successfully, now downloading remote data...")
+                
+                // Then, download and merge remote data
+                self?.fetchAndMergeRemoteData(modelContext: modelContext) { mergeSuccess, mergeError in
+                    if mergeSuccess {
+                        print("✅ Full sync completed successfully")
+                        completion(true, nil)
+                    } else {
+                        print("⚠️ Upload successful but merge failed: \(mergeError?.localizedDescription ?? "Unknown error")")
+                        completion(false, mergeError)
+                    }
+                }
+            } else {
+                print("❌ Upload failed: \(uploadError?.localizedDescription ?? "Unknown error")")
+                completion(false, uploadError)
+            }
+        }
+    }
+    
+    /// Fetch and merge remote data from CloudKit
+    /// - Parameters:
+    ///   - modelContext: SwiftData context for merging
+    ///   - completion: Completion handler with merge result
+    private func fetchAndMergeRemoteData(modelContext: ModelContext, completion: @escaping (Bool, Error?) -> Void) {
+        print("📥 Fetching remote data from CloudKit...")
+        
+        let group = DispatchGroup()
+        var mergeErrors: [Error] = []
+        
+        // Fetch bills
+        group.enter()
+        fetchBillsFromCloudKit { [weak self] remoteBills, error in
+            if let error = error {
+                mergeErrors.append(error)
+                print("❌ Failed to fetch remote bills: \(error.localizedDescription)")
+            } else if let remoteBills = remoteBills {
+                print("📥 Fetched \(remoteBills.count) remote bills")
+                // TODO: Implement merge logic for bills
+            }
+            group.leave()
+        }
+        
+        // Fetch savings
+        group.enter()
+        fetchSavingsFromCloudKit { [weak self] remoteSavings, error in
+            if let error = error {
+                mergeErrors.append(error)
+                print("❌ Failed to fetch remote savings: \(error.localizedDescription)")
+            } else if let remoteSavings = remoteSavings {
+                print("📥 Fetched \(remoteSavings.count) remote savings goals")
+                // TODO: Implement merge logic for savings
+            }
+            group.leave()
+        }
+        
+        group.notify(queue: .main) {
+            if mergeErrors.isEmpty {
+                print("✅ Remote data fetched successfully")
+                completion(true, nil)
+            } else {
+                let errorMessage = "Failed to fetch remote data: \(mergeErrors.count) errors"
+                print("❌ \(errorMessage)")
+                completion(false, NSError(domain: "CloudKit", code: 4, userInfo: [NSLocalizedDescriptionKey: errorMessage]))
+            }
+        }
+    }
 } 

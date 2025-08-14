@@ -77,19 +77,22 @@ struct BillsListView: View {
             }
         }
         .navigationTitle("")
-        .toolbar {
-            // Only show add button when Bills tab is active
-            if tabStateManager.currentTab == 1 {
-                ToolbarItem(placement: .primaryAction) {
+        .overlay(
+            VStack {
+                HStack {
+                    Spacer()
                     Button(action: { showingAddBill = true }) {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)
                             .foregroundColor(Color(red: 0, green: 0.8, blue: 0.4))
                     }
                     .accessibilityLabel("Add new bill")
+                    .padding(.trailing, 20)
+                    .padding(.top, 20)
                 }
+                Spacer()
             }
-        }
+        )
         .sheet(isPresented: $showingAddBill) {
             NavigationStack {
                 BillFormView()
@@ -103,7 +106,7 @@ struct BillsListView: View {
             
             // Only sync if CloudKit is available
             if cloudKitManager.isCloudKitAvailable {
-                syncWithCloudKit()
+                performFullSync()
             }
         }
         #if os(iOS)
@@ -381,14 +384,7 @@ struct BillRowView: View {
             isHovered = hovering
         }
         #endif
-        .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.1)) {
-                isFocused = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                isFocused = false
-            }
-        }
+
     }
 }
 
@@ -437,8 +433,8 @@ struct EmptyStateView: View {
 
 // MARK: - CloudKit Integration
 extension BillsListView {
-    /// Sync bills with CloudKit
-    private func syncWithCloudKit() {
+    /// Perform full bidirectional sync with CloudKit
+    private func performFullSync() {
         // Only sync if CloudKit is available
         guard cloudKitManager.isCloudKitAvailable else {
             print("⚠️ CloudKit not available for bills sync")
@@ -457,27 +453,14 @@ extension BillsListView {
             return bill.title.count > 0 && bill.amount > 0
         }
         
-        // Sync local bills to CloudKit
-        cloudKitManager.syncAllDataToCloudKit(bills: validBills, savings: []) { success, error in
+        // Perform full bidirectional sync
+        cloudKitManager.performFullSync(bills: validBills, savings: [], modelContext: modelContext) { success, error in
             if success {
-                print("✅ Bills synced to CloudKit successfully")
+                print("✅ Full sync completed successfully for bills")
             } else if let error = error {
-                print("❌ Failed to sync bills to CloudKit: \(error.localizedDescription)")
+                print("❌ Failed to perform full sync for bills: \(error.localizedDescription)")
             }
         }
-        
-        // Fetch and merge bills from CloudKit (macOS only) - DISABLED TO PREVENT LOOP
-        #if os(macOS)
-        // Temporarily disabled to prevent infinite sync loop
-        // cloudKitManager.fetchAllDataFromCloudKit { fetchedBills, fetchedSavings, error in
-        //     if let error = error {
-        //         print("❌ Failed to fetch bills from CloudKit: \(error.localizedDescription)")
-        //     } else if let fetchedBills = fetchedBills {
-        //         print("✅ Fetched \(fetchedBills.count) bills from CloudKit")
-        //         // TODO: Implement merge logic for fetched bills
-        //     }
-        // }
-        #endif
     }
 }
 

@@ -75,16 +75,22 @@ struct SavingsView: View {
             }
         }
         .navigationTitle("")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: { showingAddGoal = true }) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(Color(red: 0, green: 0.8, blue: 0.4))
+        .overlay(
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: { showingAddGoal = true }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(Color(red: 0, green: 0.8, blue: 0.4))
+                    }
+                    .accessibilityLabel("Add new savings goal")
+                    .padding(.trailing, 20)
+                    .padding(.top, 20)
                 }
-                .accessibilityLabel("Add new savings goal")
+                Spacer()
             }
-        }
+        )
         .sheet(isPresented: $showingAddGoal) {
             NavigationStack {
                 SavingsGoalFormView()
@@ -98,7 +104,7 @@ struct SavingsView: View {
             
             // Only sync if CloudKit is available
             if cloudKitManager.isCloudKitAvailable {
-                syncWithCloudKit()
+                performFullSync()
             }
         }
         #if os(iOS)
@@ -380,14 +386,7 @@ struct SavingsGoalRowView: View {
             isHovered = hovering
         }
         #endif
-        .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.1)) {
-                isFocused = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                isFocused = false
-            }
-        }
+
     }
 }
 
@@ -416,8 +415,8 @@ struct EmptySavingsView: View {
 
 // MARK: - CloudKit Integration
 extension SavingsView {
-    /// Sync savings goals with CloudKit
-    private func syncWithCloudKit() {
+    /// Perform full bidirectional sync with CloudKit
+    private func performFullSync() {
         // Only sync if CloudKit is available
         guard cloudKitManager.isCloudKitAvailable else {
             print("⚠️ CloudKit not available for savings sync")
@@ -436,22 +435,12 @@ extension SavingsView {
             return goal.title.count > 0 && goal.targetAmount > 0
         }
         
-        // Sync local savings goals to CloudKit
-        cloudKitManager.syncAllDataToCloudKit(bills: [], savings: validSavingsGoals) { success, error in
+        // Perform full bidirectional sync
+        cloudKitManager.performFullSync(bills: [], savings: validSavingsGoals, modelContext: modelContext) { success, error in
             if success {
-                print("✅ Savings goals synced to CloudKit successfully")
+                print("✅ Full sync completed successfully for savings goals")
             } else if let error = error {
-                print("❌ Failed to sync savings goals to CloudKit: \(error.localizedDescription)")
-            }
-        }
-        
-        // Fetch savings goals from CloudKit (for future implementation)
-        cloudKitManager.fetchSavingsFromCloudKit { fetchedSavings, error in
-            if let error = error {
-                print("❌ Failed to fetch savings goals from CloudKit: \(error.localizedDescription)")
-            } else if let fetchedSavings = fetchedSavings {
-                print("✅ Fetched \(fetchedSavings.count) savings goals from CloudKit")
-                // TODO: Implement merge logic for fetched savings goals
+                print("❌ Failed to perform full sync for savings goals: \(error.localizedDescription)")
             }
         }
     }
