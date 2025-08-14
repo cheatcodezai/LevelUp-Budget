@@ -56,6 +56,16 @@ struct SavingsView: View {
         }
     }
     
+    // Group savings goals by month for better organization
+    private var groupedSavings: [(String, [SavingsGoal])] {
+        let grouped = Dictionary(grouping: filteredGoals) { goal in
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM yyyy"
+            return formatter.string(from: goal.targetDate)
+        }
+        return grouped.sorted { $0.key < $1.key }
+    }
+    
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -64,8 +74,8 @@ struct SavingsView: View {
                 mainContentView
             }
         }
-                .navigationTitle("")
-                .toolbar {
+        .navigationTitle("")
+        .toolbar {
             // Only show add button when Savings tab is active
             if tabStateManager.currentTab == 2 {
                 ToolbarItem(placement: .primaryAction) {
@@ -75,24 +85,6 @@ struct SavingsView: View {
                             .foregroundColor(Color(red: 0, green: 0.8, blue: 0.4))
                     }
                     .accessibilityLabel("Add new savings goal")
-                }
-                
-                // Cleanup duplicates button
-                ToolbarItem(placement: .secondaryAction) {
-                    Button(action: {
-                        Task {
-                            await cloudKitManager.cleanupDuplicates(
-                                bills: [], // Empty array since we're only cleaning savings
-                                savings: savingsGoals,
-                                modelContext: modelContext
-                            )
-                        }
-                    }) {
-                        Image(systemName: "trash.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(.orange)
-                    }
-                    .accessibilityLabel("Clean up duplicate savings goals")
                 }
             }
         }
@@ -107,11 +99,9 @@ struct SavingsView: View {
             // Safely check CloudKit availability first
             cloudKitManager.checkCloudKitAvailability()
             
-            // Only sync if CloudKit is available - with delay to prevent crashes
+            // Only sync if CloudKit is available
             if cloudKitManager.isCloudKitAvailable {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    syncWithCloudKit()
-                }
+                syncWithCloudKit()
             }
         }
         #if os(iOS)
@@ -143,7 +133,7 @@ struct SavingsView: View {
                 filterButtonsView
                 savingsGoalsListView
             }
-            .frame(maxWidth: 600, alignment: .center)
+            .frame(maxWidth: 720, alignment: .center)
             .padding(.horizontal, 24)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.top, 60)
@@ -163,30 +153,23 @@ struct SavingsView: View {
     private var logoView: some View {
         VStack(spacing: 20) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(red: 0, green: 1, blue: 0.4), lineWidth: 2)
-                    .frame(width: 60, height: 60)
+                Circle()
+                    .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.1))
+                    .frame(width: 80, height: 80)
                 
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 24, weight: .bold))
+                Image(systemName: "banknote.fill")
+                    .font(.system(size: 32, weight: .medium))
                     .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
             }
-            .shadow(color: Color(red: 0, green: 1, blue: 0.4).opacity(0.3), radius: 12)
             
-            VStack(spacing: 4) {
-                HStack(spacing: 0) {
-                    Text("LEVEL")
-                        .font(.system(size: 24, weight: .bold, design: .default))
-                        .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
-                    
-                    Text("UP")
-                        .font(.system(size: 24, weight: .bold, design: .default))
-                        .foregroundColor(.white)
-                }
-                
-                Text("BUDGET")
-                    .font(.system(size: 24, weight: .bold, design: .default))
+            VStack(spacing: 8) {
+                Text("Savings")
+                    .font(.system(size: 28, weight: .bold))
                     .foregroundColor(.white)
+                
+                Text("Track your savings goals")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.gray.opacity(0.8))
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
@@ -249,18 +232,24 @@ struct SavingsView: View {
             if filteredGoals.isEmpty {
                 EmptySavingsView()
             } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(filteredGoals.enumerated()), id: \.element.id) { index, goal in
-                        NavigationLink(destination: SavingsGoalDetailView(goal: goal)) {
-                            SavingsGoalCardView(goal: goal)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Add separator between items (except for the last one)
-                        if index < filteredGoals.count - 1 {
-                            Divider()
-                                .background(Color.gray.opacity(0.2))
-                                .padding(.leading, 72) // Align with content, not icon
+                LazyVStack(spacing: 16) {
+                    ForEach(groupedSavings, id: \.0) { month, monthGoals in
+                        VStack(alignment: .leading, spacing: 12) {
+                            // Month header
+                            Text(month)
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 4)
+                            
+                            // Savings goals for this month
+                            LazyVStack(spacing: 12) {
+                                ForEach(monthGoals, id: \.id) { goal in
+                                    NavigationLink(destination: SavingsGoalDetailView(goal: goal)) {
+                                        SavingsGoalRowView(goal: goal)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
                         }
                     }
                 }
@@ -270,36 +259,11 @@ struct SavingsView: View {
     }
 }
 
-struct SavingsFilterButton: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                .foregroundColor(isSelected ? Color(red: 0, green: 1, blue: 0.4) : .white.opacity(0.8))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(isSelected ? Color(red: 0.12, green: 0.12, blue: 0.12) : Color.clear)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(isSelected ? Color(red: 0, green: 1, blue: 0.4).opacity(0.3) : Color.gray.opacity(0.3), lineWidth: 1)
-                        )
-                )
-        }
-        .buttonStyle(PlainButtonStyle())
-        .scaleEffect(isSelected ? 1.02 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
-    }
-}
-
-struct SavingsGoalCardView: View {
+// MARK: - Savings Goal Row View
+struct SavingsGoalRowView: View {
     let goal: SavingsGoal
     @State private var isHovered = false
+    @State private var isFocused = false
     
     private var progressPercentage: Double {
         guard goal.targetAmount > 0 else { return 0 }
@@ -332,77 +296,60 @@ struct SavingsGoalCardView: View {
             ZStack {
                 Circle()
                     .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.1))
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                 
                 Image(systemName: "banknote.fill")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
             }
             
             // Goal Details
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(goal.title)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
+                        .lineLimit(1)
                     
                     Spacer()
                     
-                    Text("$\(String(format: "%.2f", goal.currentAmount))")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("$\(String(format: "%.2f", goal.currentAmount))")
+                            .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                            .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
+                        
+                        Text("of $\(String(format: "%.2f", goal.targetAmount))")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 HStack {
                     Text(goal.category)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.gray.opacity(0.8))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
                     
                     Spacer()
                     
-                    Text("of $\(String(format: "%.2f", goal.targetAmount))")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.gray.opacity(0.8))
+                    Text(goal.targetDate, style: .date)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.secondary)
                 }
                 
-                // Progress Bar with proper spacing
-                VStack(spacing: 6) {
-                    HStack {
-                        Text("\(Int(progressPercentage * 100))%")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.gray.opacity(0.7))
-                        
-                        Spacer()
-                    }
-                    
-                    // Indented progress bar
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            // Background track
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(height: 6)
-                            
-                            // Progress fill
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color(red: 0, green: 1, blue: 0.4))
-                                .frame(width: geometry.size.width * progressPercentage, height: 6)
-                                .animation(.easeInOut(duration: 0.3), value: progressPercentage)
-                        }
-                    }
-                    .frame(height: 6)
-                    .padding(.horizontal, 4) // Slight indentation
-                }
-                .padding(.top, 8)
+                // Progress Bar
+                ProgressView(value: progressPercentage)
+                    .progressViewStyle(LinearProgressViewStyle(tint: Color(red: 0, green: 1, blue: 0.4)))
+                    .scaleEffect(x: 1, y: 2, anchor: .center)
             }
             
-            // Pill-style Status Indicator
-            VStack(spacing: 6) {
+            // Status Badge
+            VStack(spacing: 8) {
                 Text(statusText)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(statusColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
                     .background(
                         Capsule()
                             .fill(statusColor.opacity(0.15))
@@ -415,33 +362,41 @@ struct SavingsGoalCardView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
+        .frame(minHeight: 44)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1C1C1E equivalent
+            RoundedRectangle(cornerRadius: 14)
+                .fill(.thinMaterial)
                 .overlay(
-                    // Faint top divider
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.1))
-                        .frame(height: 1)
-                        .offset(y: -0.5),
-                    alignment: .top
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(
+                            isHovered || isFocused ? 
+                            Color(red: 0, green: 1, blue: 0.4).opacity(0.35) : 
+                            Color.clear, 
+                            lineWidth: 1.5
+                        )
                 )
-                .overlay(
-                    // Soft green border on hover
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(isHovered ? Color(red: 0, green: 1, blue: 0.5).opacity(0.6) : Color.clear, lineWidth: 1.5)
-                )
-                .shadow(color: isHovered ? Color(red: 0, green: 1, blue: 0.5).opacity(0.3) : Color.black.opacity(0.1), radius: isHovered ? 8 : 4, x: 0, y: isHovered ? 4 : 2)
         )
-        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .scaleEffect(isHovered || isFocused ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isHovered || isFocused)
+        #if os(macOS)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovered = hovering
+            isHovered = hovering
+        }
+        #endif
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isFocused = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isFocused = false
             }
         }
     }
 }
 
+
+
+// MARK: - Empty State View
 struct EmptySavingsView: View {
     var body: some View {
         VStack(spacing: 16) {
@@ -463,7 +418,6 @@ struct EmptySavingsView: View {
 }
 
 // MARK: - CloudKit Integration
-
 extension SavingsView {
     /// Sync savings goals with CloudKit
     private func syncWithCloudKit() {
@@ -494,34 +448,22 @@ extension SavingsView {
             }
         }
         
-        // Fetch and merge savings goals from CloudKit (macOS only) - DISABLED TO PREVENT LOOP
-        #if os(macOS)
-        // Temporarily disabled to prevent infinite sync loop
-        // cloudKitManager.fetchAllDataFromCloudKit { fetchedBills, fetchedSavings, error in
-        //     if let error = error {
-        //         print("❌ Failed to fetch data from CloudKit: \(error.localizedDescription)")
-        //     } else {
-        //         // Merge fetched data with local data
-        //         cloudKitManager.mergeCloudKitData(
-        //             fetchedBills: fetchedBills,
-        //             fetchedSavings: fetchedSavings,
-        //             localBills: [],
-        //             localSavings: savingsGoals,
-        //             modelContext: modelContext
-        //         ) { success, error in
-        //             if success {
-        //                 print("✅ CloudKit data merged successfully")
-        //             } else if let error = error {
-        //                 print("❌ Failed to merge CloudKit data: \(error.localizedDescription)")
-        //             }
-        //         }
-        //     }
-        // }
-        #endif
+        // Fetch savings goals from CloudKit (for future implementation)
+        cloudKitManager.fetchSavingsFromCloudKit { fetchedSavings, error in
+            if let error = error {
+                print("❌ Failed to fetch savings goals from CloudKit: \(error.localizedDescription)")
+            } else if let fetchedSavings = fetchedSavings {
+                print("✅ Fetched \(fetchedSavings.count) savings goals from CloudKit")
+                // TODO: Implement merge logic for fetched savings goals
+            }
+        }
     }
 }
 
 #Preview {
-    SavingsView()
-        .modelContainer(for: SavingsGoal.self, inMemory: true)
+    NavigationView {
+        SavingsView()
+            .environmentObject(TabStateManager())
+    }
+    .modelContainer(for: SavingsGoal.self, inMemory: true)
 } 

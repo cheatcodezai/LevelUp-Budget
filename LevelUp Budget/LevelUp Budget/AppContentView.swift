@@ -4,6 +4,7 @@ import SwiftData
 struct AppContentView: View {
     @StateObject private var authViewModel = AuthViewModel()
     @Query private var userSettings: [UserSettings]
+    @State private var isCheckingAuth = true
     
     private var settings: UserSettings {
         if let existingSettings = userSettings.first {
@@ -15,7 +16,13 @@ struct AppContentView: View {
     
     var body: some View {
         Group {
-            if authViewModel.currentUser != nil {
+            if isCheckingAuth {
+                // Show loading while checking authentication
+                LoadingView()
+                    .onAppear {
+                        checkAuthenticationStatus()
+                    }
+            } else if authViewModel.currentUser != nil {
                 ContentView()
                     .environmentObject(authViewModel)
                     .onAppear {
@@ -31,6 +38,18 @@ struct AppContentView: View {
         }
         .onAppear {
             print("🎯 AppContentView appeared - auth state: \(authViewModel.currentUser != nil)")
+        }
+    }
+    
+    private func checkAuthenticationStatus() {
+        print("🔍 Checking authentication status...")
+        
+        // Force authentication check
+        let isAuthenticated = authViewModel.checkAuthenticationStatus()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            isCheckingAuth = false
+            print("🔍 Authentication check complete: \(isAuthenticated)")
         }
     }
 }

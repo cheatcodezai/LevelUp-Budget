@@ -58,6 +58,16 @@ struct BillsListView: View {
         }
     }
     
+    // Group bills by month for better organization
+    private var groupedBills: [(String, [BillItem])] {
+        let grouped = Dictionary(grouping: filteredBills) { bill in
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM yyyy"
+            return formatter.string(from: bill.dueDate)
+        }
+        return grouped.sorted { $0.key < $1.key }
+    }
+    
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -68,13 +78,16 @@ struct BillsListView: View {
         }
         .navigationTitle("")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: { showingAddBill = true }) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(Color(red: 0, green: 0.8, blue: 0.4))
+            // Only show add button when Bills tab is active
+            if tabStateManager.currentTab == 1 {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: { showingAddBill = true }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(Color(red: 0, green: 0.8, blue: 0.4))
+                    }
+                    .accessibilityLabel("Add new bill")
                 }
-                .accessibilityLabel("Add new bill")
             }
         }
         .sheet(isPresented: $showingAddBill) {
@@ -122,7 +135,7 @@ struct BillsListView: View {
                 filterButtonsView
                 billsListView
             }
-            .frame(maxWidth: 600, alignment: .center)
+            .frame(maxWidth: 720, alignment: .center)
             .padding(.horizontal, 24)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.top, 60)
@@ -142,30 +155,23 @@ struct BillsListView: View {
     private var logoView: some View {
         VStack(spacing: 20) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(red: 0, green: 1, blue: 0.4), lineWidth: 2)
-                    .frame(width: 60, height: 60)
+                Circle()
+                    .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.1))
+                    .frame(width: 80, height: 80)
                 
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 24, weight: .bold))
+                Image(systemName: "doc.text.fill")
+                    .font(.system(size: 32, weight: .medium))
                     .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
             }
-            .shadow(color: Color(red: 0, green: 1, blue: 0.4).opacity(0.3), radius: 12)
             
-            VStack(spacing: 4) {
-                HStack(spacing: 0) {
-                    Text("LEVEL")
-                        .font(.system(size: 24, weight: .bold, design: .default))
-                        .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
-                    
-                    Text("UP")
-                        .font(.system(size: 24, weight: .bold, design: .default))
-                        .foregroundColor(.white)
-                }
-                
-                Text("BUDGET")
-                    .font(.system(size: 24, weight: .bold, design: .default))
+            VStack(spacing: 8) {
+                Text("Bills")
+                    .font(.system(size: 28, weight: .bold))
                     .foregroundColor(.white)
+                
+                Text("Manage your bills and payments")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.gray.opacity(0.8))
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
@@ -228,18 +234,24 @@ struct BillsListView: View {
             if filteredBills.isEmpty {
                 EmptyStateView()
             } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(filteredBills.enumerated()), id: \.element.id) { index, bill in
-                        NavigationLink(destination: BillDetailView(bill: bill)) {
-                            BillCardView(bill: bill)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Add separator between items (except for the last one)
-                        if index < filteredBills.count - 1 {
-                            Divider()
-                                .background(Color.gray.opacity(0.2))
-                                .padding(.leading, 72) // Align with content, not icon
+                LazyVStack(spacing: 16) {
+                    ForEach(groupedBills, id: \.0) { month, monthBills in
+                        VStack(alignment: .leading, spacing: 12) {
+                            // Month header
+                            Text(month)
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 4)
+                            
+                            // Bills for this month
+                            LazyVStack(spacing: 12) {
+                                ForEach(monthBills, id: \.id) { bill in
+                                    NavigationLink(destination: BillDetailView(bill: bill)) {
+                                        BillRowView(bill: bill)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
                         }
                     }
                 }
@@ -257,36 +269,11 @@ struct BillsListView: View {
     }
 }
 
-struct FilterButton: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                .foregroundColor(isSelected ? Color(red: 0, green: 1, blue: 0.4) : .white.opacity(0.8))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(isSelected ? Color(red: 0.12, green: 0.12, blue: 0.12) : Color.clear)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(isSelected ? Color(red: 0, green: 1, blue: 0.4).opacity(0.3) : Color.gray.opacity(0.3), lineWidth: 1)
-                        )
-                )
-        }
-        .buttonStyle(PlainButtonStyle())
-        .scaleEffect(isSelected ? 1.02 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
-    }
-}
-
-struct BillCardView: View {
+// MARK: - Bill Row View
+struct BillRowView: View {
     let bill: BillItem
     @State private var isHovered = false
+    @State private var isFocused = false
     
     private var statusText: String {
         if bill.isPaid {
@@ -318,47 +305,49 @@ struct BillCardView: View {
             ZStack {
                 Circle()
                     .fill(Color(red: 0, green: 1, blue: 0.4).opacity(0.1))
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                 
                 Image(systemName: "doc.text.fill")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
             }
             
             // Bill Details
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(bill.title)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
+                        .lineLimit(1)
                     
                     Spacer()
                     
                     Text("$\(String(format: "%.2f", bill.amount))")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 16, weight: .semibold, design: .monospaced))
                         .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
                 }
                 
                 HStack {
                     Text(bill.category)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.gray.opacity(0.8))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
                     
                     Spacer()
                     
                     Text(bill.dueDate, style: .date)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.gray.opacity(0.8))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.secondary)
                 }
             }
             
-            // Pill-style Status Indicator
-            VStack(spacing: 6) {
+            // Status Badge
+            VStack(spacing: 8) {
                 Text(statusText)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(statusColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
                     .background(
                         Capsule()
                             .fill(statusColor.opacity(0.15))
@@ -371,56 +360,82 @@ struct BillCardView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
+        .frame(minHeight: 44)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1C1C1E equivalent
+            RoundedRectangle(cornerRadius: 14)
+                .fill(.thinMaterial)
                 .overlay(
-                    // Faint top divider
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.1))
-                        .frame(height: 1)
-                        .offset(y: -0.5),
-                    alignment: .top
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(
+                            isHovered || isFocused ? 
+                            Color(red: 0, green: 1, blue: 0.4).opacity(0.35) : 
+                            Color.clear, 
+                            lineWidth: 1.5
+                        )
                 )
-                .overlay(
-                    // Soft green border on hover
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(isHovered ? Color(red: 0, green: 1, blue: 0.5).opacity(0.6) : Color.clear, lineWidth: 1.5)
-                )
-                .shadow(color: isHovered ? Color(red: 0, green: 1, blue: 0.5).opacity(0.3) : Color.black.opacity(0.1), radius: isHovered ? 8 : 4, x: 0, y: isHovered ? 4 : 2)
         )
-        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .scaleEffect(isHovered || isFocused ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isHovered || isFocused)
+        #if os(macOS)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovered = hovering
+            isHovered = hovering
+        }
+        #endif
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isFocused = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isFocused = false
             }
         }
     }
 }
 
+struct FilterButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(isSelected ? .white : .gray.opacity(0.8))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(isSelected ? Color(red: 0, green: 1, blue: 0.4) : Color.gray.opacity(0.2))
+                )
+        }
+        .buttonStyle(PlainButtonStyle())
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
+    }
+}
+
+// MARK: - Empty State View
 struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "doc.text")
                 .font(.system(size: 48))
-                .foregroundColor(.gray.opacity(0.6))
+                .foregroundColor(.gray)
             
             Text("No bills found")
                 .font(.system(size: 18, weight: .medium))
-                .foregroundColor(.gray.opacity(0.8))
+                .foregroundColor(.gray)
             
             Text("Add your first bill to get started")
                 .font(.system(size: 14))
-                .foregroundColor(.gray.opacity(0.6))
-                .multilineTextAlignment(.center)
+                .foregroundColor(.gray.opacity(0.8))
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 60)
     }
 }
 
 // MARK: - CloudKit Integration
-
 extension BillsListView {
     /// Sync bills with CloudKit
     private func syncWithCloudKit() {
@@ -430,8 +445,20 @@ extension BillsListView {
             return
         }
         
+        // Add safety check to prevent crashes with SwiftData
+        guard !bills.isEmpty else {
+            print("ℹ️ No bills to sync")
+            return
+        }
+        
+        // Validate bills before syncing
+        let validBills = bills.filter { bill in
+            // Check if the bill has valid data
+            return bill.title.count > 0 && bill.amount > 0
+        }
+        
         // Sync local bills to CloudKit
-        cloudKitManager.syncAllDataToCloudKit(bills: bills, savings: []) { success, error in
+        cloudKitManager.syncAllDataToCloudKit(bills: validBills, savings: []) { success, error in
             if success {
                 print("✅ Bills synced to CloudKit successfully")
             } else if let error = error {
@@ -439,15 +466,18 @@ extension BillsListView {
             }
         }
         
-        // Fetch bills from CloudKit (for future implementation)
-        cloudKitManager.fetchBillsFromCloudKit { fetchedBills, error in
-            if let error = error {
-                print("❌ Failed to fetch bills from CloudKit: \(error.localizedDescription)")
-            } else if let fetchedBills = fetchedBills {
-                print("✅ Fetched \(fetchedBills.count) bills from CloudKit")
-                // TODO: Implement merge logic for fetched bills
-            }
-        }
+        // Fetch and merge bills from CloudKit (macOS only) - DISABLED TO PREVENT LOOP
+        #if os(macOS)
+        // Temporarily disabled to prevent infinite sync loop
+        // cloudKitManager.fetchAllDataFromCloudKit { fetchedBills, fetchedSavings, error in
+        //     if let error = error {
+        //         print("❌ Failed to fetch bills from CloudKit: \(error.localizedDescription)")
+        //     } else if let fetchedBills = fetchedBills {
+        //         print("✅ Fetched \(fetchedBills.count) bills from CloudKit")
+        //         // TODO: Implement merge logic for fetched bills
+        //     }
+        // }
+        #endif
     }
 }
 

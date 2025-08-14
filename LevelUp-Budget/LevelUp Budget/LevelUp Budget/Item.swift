@@ -33,7 +33,7 @@ struct User: Codable {
 }
 
 @Model
-final class BillItem {
+final class BillItem: Sendable {
     var title: String = ""
     var amount: Double = 0.0
     var dueDate: Date = Date()
@@ -62,7 +62,7 @@ final class BillItem {
 }
 
 @Model
-final class SavingsGoal {
+final class SavingsGoal: Sendable {
     var title: String = ""
     var category: String = ""
     var goalType: String = "Savings"
@@ -87,7 +87,7 @@ final class SavingsGoal {
 }
 
 @Model
-final class UserSettings {
+final class UserSettings: Sendable {
     var monthlyBudget: Double = 2000.0
     var monthlyIncome: Double = 5000.0
     var notificationsEnabled: Bool = true

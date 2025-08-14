@@ -705,52 +705,180 @@ class CloudKitManager: ObservableObject {
     ///   - savings: Array of local savings goals
     ///   - modelContext: SwiftData model context
     func cleanupDuplicates(bills: [BillItem], savings: [SavingsGoal], modelContext: ModelContext) {
-        print("🧹 Cleaning up duplicates...")
+        print("🧹 Starting enhanced duplicate cleanup...")
         
-        // Group bills by title and due date
-        let groupedBills = Dictionary(grouping: bills) { bill in
-            "\(bill.title)_\(Calendar.current.startOfDay(for: bill.dueDate))"
-        }
+        let originalBillCount = bills.count
+        let originalSavingsCount = savings.count
         
-        // Keep only the most recent bill from each group
-        for (_, duplicateBills) in groupedBills {
-            if duplicateBills.count > 1 {
-                let sortedBills = duplicateBills.sorted { $0.updatedAt > $1.updatedAt }
-                let _ = sortedBills.first!
-                let deleteBills = Array(sortedBills.dropFirst())
-                
-                for bill in deleteBills {
-                    modelContext.delete(bill)
-                    print("🗑️ Deleted duplicate bill: \(bill.title)")
-                }
-            }
-        }
+        // Enhanced bill duplicate detection and cleanup
+        let billsCleaned = cleanupDuplicateBills(bills: bills, modelContext: modelContext)
         
-        // Group savings goals by title and target date
-        let groupedSavings = Dictionary(grouping: savings) { saving in
-            "\(saving.title)_\(Calendar.current.startOfDay(for: saving.targetDate))"
-        }
+        // Enhanced savings duplicate detection and cleanup
+        let savingsCleaned = cleanupDuplicateSavings(savings: savings, modelContext: modelContext)
         
-        // Keep only the most recent savings goal from each group
-        for (_, duplicateSavings) in groupedSavings {
-            if duplicateSavings.count > 1 {
-                let sortedSavings = duplicateSavings.sorted { $0.updatedAt > $1.updatedAt }
-                let _ = sortedSavings.first!
-                let deleteSavings = Array(sortedSavings.dropFirst())
-                
-                for saving in deleteSavings {
-                    modelContext.delete(saving)
-                    print("🗑️ Deleted duplicate savings goal: \(saving.title)")
-                }
-            }
-        }
-        
-        // Save changes
+        // Save all changes
         do {
             try modelContext.save()
-            print("✅ Duplicate cleanup completed")
+            let finalBillCount = bills.count
+            let finalSavingsCount = savings.count
+            
+            print("✅ Enhanced duplicate cleanup completed:")
+            print("   📊 Bills: \(originalBillCount) → \(finalBillCount) (cleaned: \(billsCleaned))")
+            print("   🎯 Savings: \(originalSavingsCount) → \(finalSavingsCount) (cleaned: \(savingsCleaned))")
+            print("   🧹 Total duplicates removed: \(billsCleaned + savingsCleaned)")
+            
         } catch {
             print("❌ Failed to save after cleanup: \(error.localizedDescription)")
         }
+    }
+    
+    /// Enhanced duplicate bill cleanup with intelligent merging
+    /// - Parameters:
+    ///   - bills: Array of local bills
+    ///   - modelContext: SwiftData model context
+    /// - Returns: Number of duplicates cleaned
+    private func cleanupDuplicateBills(bills: [BillItem], modelContext: ModelContext) -> Int {
+        print("🔍 Analyzing bills for duplicates...")
+        
+        var duplicatesRemoved = 0
+        
+        // Create more intelligent grouping - normalize bill names for better matching
+        let groupedBills = Dictionary(grouping: bills) { bill in
+            let normalizedName = bill.title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedDate = Calendar.current.startOfDay(for: bill.dueDate)
+            return "\(normalizedName)_\(normalizedDate)"
+        }
+        
+        for (groupKey, duplicateBills) in groupedBills {
+            if duplicateBills.count > 1 {
+                print("🔍 Found \(duplicateBills.count) potential duplicates for: \(groupKey)")
+                
+                // Sort by most recent update and data quality
+                let sortedBills = duplicateBills.sorted { bill1, bill2 in
+                    // Primary sort: most recent update
+                    if bill1.updatedAt != bill2.updatedAt {
+                        return bill1.updatedAt > bill2.updatedAt
+                    }
+                    
+                    // Secondary sort: most complete data (more notes, better category)
+                    let bill1Score = calculateBillQualityScore(bill1)
+                    let bill2Score = calculateBillQualityScore(bill2)
+                    return bill1Score > bill2Score
+                }
+                
+                let bestBill = sortedBills.first!
+                let duplicateBillsToDelete = Array(sortedBills.dropFirst())
+                
+                print("✅ Keeping best bill: '\(bestBill.title)' (updated: \(bestBill.updatedAt), score: \(calculateBillQualityScore(bestBill)))")
+                
+                // Delete duplicates
+                for duplicateBill in duplicateBillsToDelete {
+                    print("🗑️ Deleting duplicate: '\(duplicateBill.title)' (updated: \(duplicateBill.updatedAt), score: \(calculateBillQualityScore(duplicateBill)))")
+                    modelContext.delete(duplicateBill)
+                    duplicatesRemoved += 1
+                }
+            }
+        }
+        
+        return duplicatesRemoved
+    }
+    
+    /// Enhanced duplicate savings cleanup with intelligent merging
+    /// - Parameters:
+    ///   - savings: Array of local savings goals
+    ///   - modelContext: SwiftData model context
+    /// - Returns: Number of duplicates cleaned
+    private func cleanupDuplicateSavings(savings: [SavingsGoal], modelContext: ModelContext) -> Int {
+        print("🔍 Analyzing savings goals for duplicates...")
+        
+        var duplicatesRemoved = 0
+        
+        // Group by normalized name and target date
+        let groupedSavings = Dictionary(grouping: savings) { saving in
+            let normalizedName = saving.title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedDate = Calendar.current.startOfDay(for: saving.targetDate)
+            return "\(normalizedName)_\(normalizedDate)"
+        }
+        
+        for (groupKey, duplicateSavings) in groupedSavings {
+            if duplicateSavings.count > 1 {
+                print("🔍 Found \(duplicateSavings.count) potential duplicates for: \(groupKey)")
+                
+                // Sort by most recent update and data quality
+                let sortedSavings = duplicateSavings.sorted { saving1, saving2 in
+                    // Primary sort: most recent update
+                    if saving1.updatedAt != saving2.updatedAt {
+                        return saving1.updatedAt > saving2.updatedAt
+                    }
+                    
+                    // Secondary sort: most complete data
+                    let saving1Score = calculateSavingsQualityScore(saving1)
+                    let saving2Score = calculateSavingsQualityScore(saving2)
+                    return saving1Score > saving2Score
+                }
+                
+                let bestSaving = sortedSavings.first!
+                let duplicateSavingsToDelete = Array(sortedSavings.dropFirst())
+                
+                print("✅ Keeping best savings goal: '\(bestSaving.title)' (updated: \(bestSaving.updatedAt), score: \(calculateSavingsQualityScore(bestSaving)))")
+                
+                // Delete duplicates
+                for duplicateSaving in duplicateSavingsToDelete {
+                    print("🗑️ Deleting duplicate: '\(duplicateSaving.title)' (updated: \(duplicateSaving.updatedAt), score: \(calculateSavingsQualityScore(duplicateSaving)))")
+                    modelContext.delete(duplicateSaving)
+                    duplicatesRemoved += 1
+                }
+            }
+        }
+        
+        return duplicatesRemoved
+    }
+    
+    /// Calculate quality score for a bill (higher = better)
+    /// - Parameter bill: The bill to score
+    /// - Returns: Quality score (0-100)
+    private func calculateBillQualityScore(_ bill: BillItem) -> Int {
+        var score = 0
+        
+        // Base score for having the bill
+        score += 10
+        
+        // Bonus for complete information
+        if !bill.notes.isEmpty { score += 5 }
+        if bill.category != "General" { score += 3 }
+        if bill.isRecurring { score += 2 }
+        if bill.recurrenceType != nil { score += 2 }
+        if bill.endDate != nil { score += 2 }
+        
+        // Bonus for recent activity
+        let daysSinceUpdate = Calendar.current.dateComponents([.day], from: bill.updatedAt, to: Date()).day ?? 0
+        if daysSinceUpdate <= 7 { score += 5 }
+        else if daysSinceUpdate <= 30 { score += 3 }
+        else if daysSinceUpdate <= 90 { score += 1 }
+        
+        return min(score, 100)
+    }
+    
+    /// Calculate quality score for a savings goal (higher = better)
+    /// - Parameter saving: The savings goal to score
+    /// - Returns: Quality score (0-100)
+    private func calculateSavingsQualityScore(_ saving: SavingsGoal) -> Int {
+        var score = 0
+        
+        // Base score for having the savings goal
+        score += 10
+        
+        // Bonus for complete information
+        if !saving.notes.isEmpty { score += 5 }
+        if saving.category != "Savings" { score += 3 }
+        if saving.goalType != "Savings" { score += 2 }
+        
+        // Bonus for recent activity
+        let daysSinceUpdate = Calendar.current.dateComponents([.day], from: saving.updatedAt, to: Date()).day ?? 0
+        if daysSinceUpdate <= 7 { score += 5 }
+        else if daysSinceUpdate <= 30 { score += 3 }
+        else if daysSinceUpdate <= 90 { score += 1 }
+        
+        return min(score, 100)
     }
 } 

@@ -97,5 +97,56 @@ struct LevelUp_BudgetApp: App {
                 .modelContainer(sharedModelContainer)
         }
     }
+    
+    // MARK: - Automatic Duplicate Cleanup
+    
+    /// Trigger automatic duplicate cleanup when safe to do so
+    private func triggerAutomaticDuplicateCleanup() {
+        print("🧹 Triggering automatic duplicate cleanup...")
+        
+        // Only run cleanup if CloudKit is available and user is authenticated
+        guard CloudKitManager.shared.isCloudKitAvailable else {
+            print("⚠️ CloudKit not available - skipping duplicate cleanup")
+            return
+        }
+        
+        // Run cleanup in background to avoid blocking UI
+        Task {
+            await performBackgroundDuplicateCleanup()
+        }
+    }
+    
+    /// Perform duplicate cleanup in background
+    private func performBackgroundDuplicateCleanup() async {
+        print("🔍 Starting background duplicate cleanup...")
+        
+        // Small delay to ensure app is fully loaded
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        
+        // Get current data for cleanup
+        let modelContainer = sharedModelContainer
+        let modelContext = ModelContext(modelContainer)
+        
+        // Fetch current bills and savings
+        let billDescriptor = FetchDescriptor<BillItem>()
+        let savingsDescriptor = FetchDescriptor<SavingsGoal>()
+        
+        do {
+            let bills = try modelContext.fetch(billDescriptor)
+            let savings = try modelContext.fetch(savingsDescriptor)
+            
+            print("📊 Found \(bills.count) bills and \(savings.count) savings goals for cleanup")
+            
+            // Run the enhanced cleanup on main thread to avoid concurrency issues
+            await MainActor.run {
+                CloudKitManager.shared.cleanupDuplicates(bills: bills, savings: savings, modelContext: modelContext)
+            }
+            
+            print("✅ Background duplicate cleanup completed")
+            
+        } catch {
+            print("❌ Error during background cleanup: \(error.localizedDescription)")
+        }
+    }
 }
 

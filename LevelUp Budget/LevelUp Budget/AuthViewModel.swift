@@ -36,9 +36,14 @@ class AuthViewModel: ObservableObject {
     }
     
     private func setupAuthStateListener() {
+        // Always start with no user to ensure proper authentication flow
+        self.currentUser = nil
+        
         // Check if Firebase is configured
         guard FirebaseApp.app() != nil else {
             print("⚠️ Firebase not configured, skipping auth state listener")
+            // Ensure user is not authenticated when Firebase is unavailable
+            self.currentUser = nil
             return
         }
         
@@ -60,6 +65,30 @@ class AuthViewModel: ObservableObject {
                     CloudKitManager.shared.updateGuestStatus(userId: nil)
                 }
             }
+        }
+        
+        // Additional check: verify current Firebase auth state
+        // For simulator testing, we might want to force a fresh login
+        #if targetEnvironment(simulator)
+        print("🔍 Running in simulator - forcing fresh authentication for testing")
+        // In simulator, we can optionally force sign out for testing
+        // Uncomment the next line if you want to force fresh login in simulator
+        // try? Auth.auth().signOut()
+        #endif
+        
+        if let currentUser = Auth.auth().currentUser {
+            print("🔍 Found existing Firebase user: \(currentUser.uid)")
+            let user = User(
+                id: currentUser.uid,
+                email: currentUser.email,
+                name: currentUser.displayName,
+                authProvider: .email
+            )
+            self.currentUser = user
+            CloudKitManager.shared.updateGuestStatus(userId: user.id)
+        } else {
+            print("🔍 No existing Firebase user found")
+            self.currentUser = nil
         }
     }
     
@@ -566,9 +595,68 @@ class AuthViewModel: ObservableObject {
         do {
             try Auth.auth().signOut()
             currentUser = nil
+            print("✅ User signed out successfully")
         } catch {
             errorMessage = error.localizedDescription
             showError = true
+            print("❌ Error during sign out: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Force Sign Out (for security)
+    func forceSignOut() {
+        // Force sign out regardless of Firebase state
+        do {
+            try Auth.auth().signOut()
+        } catch {
+            print("⚠️ Firebase sign out failed: \(error.localizedDescription)")
+        }
+        
+        // Always clear the current user
+        currentUser = nil
+        print("✅ User force signed out")
+    }
+    
+    // MARK: - Simulator Testing Helper
+    #if targetEnvironment(simulator)
+    /// Force sign out for simulator testing (removes auto-login)
+    func forceSignOutForTesting() {
+        print("🧪 Simulator testing mode - forcing sign out")
+        do {
+            try Auth.auth().signOut()
+            self.currentUser = nil
+            CloudKitManager.shared.updateGuestStatus(userId: nil)
+            print("✅ Successfully signed out for testing")
+        } catch {
+            print("❌ Failed to sign out for testing: \(error.localizedDescription)")
+        }
+    }
+    #endif
+    
+    // MARK: - Check Authentication Status
+    func checkAuthenticationStatus() -> Bool {
+        // Verify Firebase is configured
+        guard FirebaseApp.app() != nil else {
+            print("⚠️ Firebase not configured during auth check")
+            currentUser = nil
+            return false
+        }
+        
+        // Check if there's a valid Firebase user
+        if let firebaseUser = Auth.auth().currentUser {
+            // Verify the user is still valid
+            if firebaseUser.isEmailVerified || firebaseUser.providerData.contains(where: { $0.providerID == "apple.com" }) {
+                print("✅ Valid Firebase user found: \(firebaseUser.uid)")
+                return true
+            } else {
+                print("⚠️ Firebase user found but not verified: \(firebaseUser.uid)")
+                forceSignOut()
+                return false
+            }
+        } else {
+            print("🔍 No Firebase user found during auth check")
+            currentUser = nil
+            return false
         }
     }
     

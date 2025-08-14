@@ -3,6 +3,8 @@ import SwiftUI
 struct LoginView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @State private var showingEmailSignIn = false
+    @State private var showingTermsOfService = false
+    @State private var showingPrivacyPolicy = false
     @State private var isLoading = false
     @State private var logoScale: CGFloat = 0.9
     @State private var logoOpacity: Double = 0.0
@@ -135,7 +137,7 @@ struct LoginView: View {
                     
                     HStack(spacing: 4) {
                         Button("Terms of Service") {
-                            // TODO: Open Terms of Service
+                            showingTermsOfService = true
                         }
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
@@ -145,13 +147,39 @@ struct LoginView: View {
                             .foregroundColor(.gray.opacity(0.6))
                         
                         Button("Privacy Policy") {
-                            // TODO: Open Privacy Policy
+                            showingPrivacyPolicy = true
                         }
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
                     }
                 }
-                .padding(.bottom, 40)
+                .padding(.bottom, 20)
+                
+                // Simulator Testing Button (only visible in simulator)
+                #if targetEnvironment(simulator)
+                VStack(spacing: 8) {
+                    Divider()
+                        .background(Color.gray.opacity(0.3))
+                        .padding(.horizontal, 40)
+                    
+                    Button("🧪 Force Sign Out (Simulator Testing)") {
+                        authViewModel.forceSignOutForTesting()
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.orange)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.orange.opacity(0.1))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                            )
+                    )
+                }
+                .padding(.bottom, 20)
+                #endif
             }
         }
         .onAppear {
@@ -167,6 +195,12 @@ struct LoginView: View {
         }
         .sheet(isPresented: $showingEmailSignIn) {
             EmailSignInView()
+        }
+        .sheet(isPresented: $showingTermsOfService) {
+            TermsOfServiceView()
+        }
+        .sheet(isPresented: $showingPrivacyPolicy) {
+            PrivacyPolicyView()
         }
         .alert("Error", isPresented: $authViewModel.showError) {
             Button("OK") { }

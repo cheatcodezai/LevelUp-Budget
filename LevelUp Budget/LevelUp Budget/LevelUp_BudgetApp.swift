@@ -30,26 +30,25 @@ struct LevelUp_BudgetApp: App {
         
         print("📋 Schema created with \(schema.entities.count) entities")
         
-        // Strategy 1: Try with in-memory storage
-        print("🔄 Attempting in-memory storage...")
-        let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true)
-        
+        // Strategy 1: Try with persistent storage (default)
+        print("🔄 Attempting persistent storage...")
         do {
-            let container = try ModelContainer(for: schema, configurations: [inMemoryConfig])
-            print("✅ ModelContainer created successfully with in-memory storage")
+            let container = try ModelContainer(for: schema)
+            print("✅ ModelContainer created successfully with persistent storage")
             return container
         } catch {
-            print("❌ Failed to create ModelContainer with in-memory storage: \(error)")
+            print("❌ Failed to create ModelContainer with persistent storage: \(error)")
             print("📝 Error details: \(error.localizedDescription)")
             
-            // Strategy 2: Try with default configuration
-            print("🔄 Attempting default configuration...")
+            // Strategy 2: Try with explicit persistent configuration
+            print("🔄 Attempting explicit persistent configuration...")
+            let persistentConfig = ModelConfiguration(isStoredInMemoryOnly: false)
             do {
-                let container = try ModelContainer(for: schema)
-                print("✅ ModelContainer created successfully with default configuration")
+                let container = try ModelContainer(for: schema, configurations: [persistentConfig])
+                print("✅ ModelContainer created successfully with explicit persistent configuration")
                 return container
             } catch {
-                print("❌ Failed to create ModelContainer with default configuration: \(error)")
+                print("❌ Failed to create ModelContainer with explicit persistent configuration: \(error)")
                 print("📝 Error details: \(error.localizedDescription)")
                 
                 // Strategy 3: Try with minimal configuration
@@ -67,7 +66,7 @@ struct LevelUp_BudgetApp: App {
                     print("🔄 Attempting with single model to isolate issue...")
                     do {
                         let singleSchema = Schema([BillItem.self])
-                        let container = try ModelContainer(for: singleSchema, configurations: [inMemoryConfig])
+                        let container = try ModelContainer(for: singleSchema)
                         print("✅ ModelContainer created successfully with single model (BillItem)")
                         return container
                     } catch {
@@ -77,7 +76,7 @@ struct LevelUp_BudgetApp: App {
                         // Final fallback - create a completely minimal container
                         print("🔄 Attempting completely minimal container...")
                         do {
-                            let container = try ModelContainer(for: Schema([]), configurations: [inMemoryConfig])
+                            let container = try ModelContainer(for: Schema([]))
                             print("✅ ModelContainer created successfully with empty schema")
                             return container
                         } catch {
@@ -116,7 +115,64 @@ struct LevelUp_BudgetApp: App {
                     UITabBar.appearance().standardAppearance = appearance
                     UITabBar.appearance().scrollEdgeAppearance = appearance
                     #endif
+                    
+                    // Trigger automatic duplicate cleanup on app launch
+                    print("🚀 App launched - scheduling duplicate cleanup...")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        triggerAutomaticDuplicateCleanup()
+                    }
                 }
+        }
+    }
+    
+    // MARK: - Automatic Duplicate Cleanup
+    
+    /// Trigger automatic duplicate cleanup when safe to do so
+    private func triggerAutomaticDuplicateCleanup() {
+        print("🧹 Triggering automatic duplicate cleanup...")
+        
+        // Only run cleanup if CloudKit is available and user is authenticated
+        guard CloudKitManager.shared.isCloudKitAvailable else {
+            print("⚠️ CloudKit not available - skipping duplicate cleanup")
+            return
+        }
+        
+        // Run cleanup in background to avoid blocking UI
+        Task {
+            await performBackgroundDuplicateCleanup()
+        }
+    }
+    
+    /// Perform duplicate cleanup in background
+    private func performBackgroundDuplicateCleanup() async {
+        print("🔍 Starting background duplicate cleanup...")
+        
+        // Small delay to ensure app is fully loaded
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        
+        // Get current data for cleanup
+        let modelContainer = sharedModelContainer
+        let modelContext = ModelContext(modelContainer)
+        
+        // Fetch current bills and savings
+        let billDescriptor = FetchDescriptor<BillItem>()
+        let savingsDescriptor = FetchDescriptor<SavingsGoal>()
+        
+        do {
+            let bills = try modelContext.fetch(billDescriptor)
+            let savings = try modelContext.fetch(savingsDescriptor)
+            
+            print("📊 Found \(bills.count) bills and \(savings.count) savings goals for cleanup")
+            
+            // Run the enhanced cleanup on main thread to avoid concurrency issues
+            await MainActor.run {
+                CloudKitManager.shared.cleanupDuplicates(bills: bills, savings: savings, modelContext: modelContext)
+            }
+            
+            print("✅ Background duplicate cleanup completed")
+            
+        } catch {
+            print("❌ Error during background cleanup: \(error.localizedDescription)")
         }
     }
 }
