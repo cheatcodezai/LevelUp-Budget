@@ -589,7 +589,7 @@ struct MonthlyBudgetSection: View {
             }
         }
         .sheet(isPresented: $isEditingIncome) {
-            IncomeEditView(incomeValue: $incomeValue, settings: settings)
+                            IncomeEditView(settings: settings)
         }
         .alert("Custom Budget", isPresented: $showingCustomBudgetInput) {
             TextField("Enter budget amount", text: $customBudgetValue)
@@ -613,15 +613,13 @@ struct MonthlyBudgetSection: View {
 
 // MARK: - Income Edit View
 struct IncomeEditView: View {
-    @Binding var incomeValue: Double
     let settings: UserSettings
     @Environment(\.dismiss) private var dismiss
     @State private var tempIncomeValue: String
     
-    init(incomeValue: Binding<Double>, settings: UserSettings) {
-        self._incomeValue = incomeValue
+    init(settings: UserSettings) {
         self.settings = settings
-        self._tempIncomeValue = State(initialValue: String(format: "%.0f", incomeValue.wrappedValue))
+        self._tempIncomeValue = State(initialValue: String(format: "%.0f", settings.monthlyIncome))
     }
     
     var body: some View {
@@ -646,9 +644,18 @@ struct IncomeEditView: View {
                 
                 Button("Save Income") {
                     if let newValue = Double(tempIncomeValue), newValue > 0 {
-                        incomeValue = newValue
                         settings.monthlyIncome = newValue
                         settings.updatedAt = Date()
+                        
+                        // Sync to CloudKit
+                        CloudKitManager.shared.saveUserSettingsToCloudKit(settings) { success, error in
+                            if success {
+                                print("✅ Monthly income synced to CloudKit: $\(newValue)")
+                            } else if let error = error {
+                                print("❌ Failed to sync monthly income: \(error.localizedDescription)")
+                            }
+                        }
+                        
                         dismiss()
                     }
                 }

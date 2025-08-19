@@ -8,6 +8,30 @@
 import Foundation
 import CloudKit
 import SwiftData
+import Network
+
+// MARK: - Network Monitor
+
+class NetworkMonitor: ObservableObject {
+    static let shared = NetworkMonitor()
+    private let monitor = NWPathMonitor()
+    private let queue = DispatchQueue(label: "NetworkMonitor")
+    
+    @Published var isConnected = false
+    
+    private init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            DispatchQueue.main.async {
+                self?.isConnected = path.status == .satisfied
+            }
+        }
+        monitor.start(queue: queue)
+    }
+    
+    deinit {
+        monitor.cancel()
+    }
+}
 
 // MARK: - CloudKit Manager for iCloud Sync
 class CloudKitManager: ObservableObject {
@@ -27,14 +51,17 @@ class CloudKitManager: ObservableObject {
     // Record type constants
     private let billRecordType = "Bill"
     private let savingRecordType = "Saving"
+    private let userSettingsRecordType = "UserSettings"
     
     // Published properties for UI updates
     @Published var isCloudKitAvailable = false
     @Published var lastSyncDate: Date?
     @Published var syncError: String?
+    @Published var isSyncing = false
     
     // Private properties for sync control
-    private var _isSyncing = false
+    private var syncTimer: Timer?
+    private var lastSyncAttempt: Date?
     
     // Check if current user is a guest
     private var isGuestUser: Bool {
@@ -86,6 +113,60 @@ class CloudKitManager: ObservableObject {
         print("🔍 Checking CloudKit availability immediately...")
         checkCloudKitAvailability()
         #endif
+        
+        // Setup automatic sync timer
+        setupAutomaticSync()
+    }
+    
+    deinit {
+        syncTimer?.invalidate()
+    }
+    
+    // MARK: - Automatic Sync Setup
+    
+    /// Setup automatic sync timer for periodic syncing
+    private func setupAutomaticSync() {
+        // Sync every 5 minutes when app is active
+        syncTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+            self?.triggerAutomaticSync()
+        }
+        
+        print("⏰ Automatic sync timer set up (every 5 minutes)")
+    }
+    
+    /// Trigger automatic sync if conditions are met
+    private func triggerAutomaticSync() {
+        // Only auto-sync if CloudKit is available and we haven't synced recently
+        guard isCloudKitAvailable else {
+            print("⏰ Auto-sync skipped - CloudKit not available")
+            return
+        }
+        
+        // Prevent too frequent sync attempts
+        if let lastAttempt = lastSyncAttempt,
+           Date().timeIntervalSince(lastAttempt) < 60 { // Minimum 1 minute between attempts
+            print("⏰ Auto-sync skipped - too recent")
+            return
+        }
+        
+        print("⏰ Triggering automatic sync...")
+        lastSyncAttempt = Date()
+        
+        // Notify that we want to sync (views will handle the actual sync)
+        NotificationCenter.default.post(name: .cloudKitSyncRequested, object: nil)
+    }
+    
+    /// Request immediate sync (called from views or other parts of the app)
+    func requestSync() {
+        guard isCloudKitAvailable else {
+            print("⚠️ Sync requested but CloudKit not available")
+            return
+        }
+        
+        print("🔄 Manual sync requested...")
+        print("🌐 Network: \(NetworkMonitor.shared.isConnected ? "Connected" : "Disconnected")")
+        
+        NotificationCenter.default.post(name: .cloudKitSyncRequested, object: nil)
     }
     
     // MARK: - CloudKit Availability Check
@@ -325,6 +406,113 @@ class CloudKitManager: ObservableObject {
         }
     }
     
+    // MARK: - UserSettings Operations
+    
+    /// Save user settings to CloudKit
+    /// - Parameters:
+    ///   - settings: The UserSettings to save
+    ///   - completion: Completion handler with success/failure result
+    func saveUserSettingsToCloudKit(_ settings: UserSettings, completion: @escaping (Bool, Error?) -> Void) {
+        guard isCloudKitAvailable, let database = privateDatabase else {
+            completion(false, NSError(domain: "CloudKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "CloudKit not available"]))
+            return
+        }
+        
+        // Create CKRecord for user settings
+        let record = CKRecord(recordType: userSettingsRecordType)
+        record["monthlyBudget"] = settings.monthlyBudget
+        record["monthlyIncome"] = settings.monthlyIncome
+        record["notificationsEnabled"] = settings.notificationsEnabled
+        record["darkModeEnabled"] = settings.darkModeEnabled
+        record["createdAt"] = settings.createdAt
+        record["updatedAt"] = settings.updatedAt
+        
+        // Save to CloudKit
+        database.save(record) { [weak self] savedRecord, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("❌ Failed to save user settings to CloudKit: \(error.localizedDescription)")
+                    self?.syncError = error.localizedDescription
+                    completion(false, error)
+                } else {
+                    print("✅ User settings saved to CloudKit successfully")
+                    self?.lastSyncDate = Date()
+                    self?.syncError = nil
+                    completion(true, nil)
+                }
+            }
+        }
+    }
+    
+    /// Fetch user settings from CloudKit
+    /// - Parameter completion: Completion handler with settings or error
+    func fetchUserSettingsFromCloudKit(completion: @escaping (UserSettings?, Error?) -> Void) {
+        guard isCloudKitAvailable, let database = privateDatabase else {
+            completion(nil, NSError(domain: "CloudKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "CloudKit not available"]))
+            return
+        }
+        
+        // Create query for user settings
+        let query = CKQuery(recordType: userSettingsRecordType, predicate: NSPredicate(value: true))
+        query.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
+        
+        // Use the newer fetch method
+        let queryOperation = CKQueryOperation(query: query)
+        queryOperation.resultsLimit = 1 // Only get the most recent settings
+        var fetchedRecords: [CKRecord] = []
+        
+        queryOperation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success(let record):
+                fetchedRecords.append(record)
+            case .failure(let error):
+                print("❌ Failed to fetch user settings record: \(error.localizedDescription)")
+            }
+        }
+        
+        queryOperation.queryResultBlock = { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    // Get the first record from fetchedRecords
+                    if let record = fetchedRecords.first {
+                        // Convert CKRecord to UserSettings
+                        let settings = UserSettings(
+                            monthlyBudget: record["monthlyBudget"] as? Double ?? 2000.0,
+                            monthlyIncome: record["monthlyIncome"] as? Double ?? 5000.0,
+                            notificationsEnabled: record["notificationsEnabled"] as? Bool ?? true,
+                            darkModeEnabled: record["darkModeEnabled"] as? Bool ?? false
+                        )
+                        
+                        // Set timestamps if available
+                        if let createdAt = record["createdAt"] as? Date {
+                            settings.createdAt = createdAt
+                        }
+                        if let updatedAt = record["updatedAt"] as? Date {
+                            settings.updatedAt = updatedAt
+                        }
+                        
+                        print("✅ Fetched user settings from CloudKit")
+                        self?.lastSyncDate = Date()
+                        self?.syncError = nil
+                        completion(settings, nil)
+                        
+                    } else {
+                        print("ℹ️ No user settings found in CloudKit")
+                        completion(nil, nil)
+                    }
+                    
+                case .failure(let error):
+                    print("❌ Failed to fetch user settings from CloudKit: \(error.localizedDescription)")
+                    self?.syncError = error.localizedDescription
+                    completion(nil, error)
+                }
+            }
+        }
+        
+        database.add(queryOperation)
+    }
+    
     /// Fetch all savings goals from CloudKit
     /// - Parameter completion: Completion handler with savings array or error
     func fetchSavingsFromCloudKit(completion: @escaping ([SavingsGoal]?, Error?) -> Void) {
@@ -397,7 +585,7 @@ class CloudKitManager: ObservableObject {
             }
         }
         
-        privateDatabase?.add(queryOperation)
+        database.add(queryOperation)
     }
     
     // MARK: - Sync Operations
@@ -406,23 +594,26 @@ class CloudKitManager: ObservableObject {
     /// - Parameters:
     ///   - bills: Array of local bills to sync
     ///   - savings: Array of local savings goals to sync
+    ///   - userSettings: User settings to sync
     ///   - completion: Completion handler with sync result
-    func syncAllDataToCloudKit(bills: [BillItem], savings: [SavingsGoal], completion: @escaping (Bool, Error?) -> Void) {
+    func syncAllDataToCloudKit(bills: [BillItem], savings: [SavingsGoal], userSettings: UserSettings?, completion: @escaping (Bool, Error?) -> Void) {
         // Check if CloudKit is available
-        guard isCloudKitAvailable, let database = privateDatabase else {
+        guard isCloudKitAvailable, let _ = privateDatabase else {
             print("⚠️ CloudKit not available for sync")
             completion(false, NSError(domain: "CloudKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "CloudKit not available"]))
             return
         }
         
         // Prevent recursive sync calls
-        guard !_isSyncing else {
+        guard !isSyncing else {
             print("⚠️ Sync already in progress, skipping")
             completion(false, NSError(domain: "CloudKit", code: 3, userInfo: [NSLocalizedDescriptionKey: "Sync already in progress"]))
             return
         }
+        DispatchQueue.main.async {
+            self.isSyncing = true
+        }
         
-        _isSyncing = true
         print("🔄 Starting CloudKit sync for \(bills.count) bills and \(savings.count) savings goals")
         
         let group = DispatchGroup()
@@ -439,14 +630,41 @@ class CloudKitManager: ObservableObject {
         
         for bill in bills {
             group.enter()
+            let billTitle = bill.title
+            let billAmount = bill.amount
+            let billDueDate = bill.dueDate
+            let billIsPaid = bill.isPaid
+            let billNotes = bill.notes
+            let billCategory = bill.category
+            let billIsRecurring = bill.isRecurring
+            let billRecurrenceType = bill.recurrenceType
+            let billEndDate = bill.endDate
+            let billCreatedAt = bill.createdAt
+            let billUpdatedAt = bill.updatedAt
+            
             syncQueue.async {
-                self.saveBillToCloudKit(bill) { success, error in
+                // Create a temporary bill object for syncing
+                let tempBill = BillItem(
+                    title: billTitle,
+                    amount: billAmount,
+                    dueDate: billDueDate,
+                    isPaid: billIsPaid,
+                    notes: billNotes,
+                    category: billCategory,
+                    isRecurring: billIsRecurring,
+                    recurrenceType: billRecurrenceType,
+                    endDate: billEndDate
+                )
+                tempBill.createdAt = billCreatedAt
+                tempBill.updatedAt = billUpdatedAt
+                
+                self.saveBillToCloudKit(tempBill) { success, error in
                     if success {
                         billsSynced += 1
-                        print("✅ Synced bill: \(bill.title)")
+                        print("✅ Synced bill: \(billTitle)")
                     } else if let error = error {
                         syncErrors.append(error)
-                        print("❌ Failed to sync bill \(bill.title): \(error.localizedDescription)")
+                        print("❌ Failed to sync bill \(billTitle): \(error.localizedDescription)")
                     }
                     group.leave()
                 }
@@ -456,14 +674,53 @@ class CloudKitManager: ObservableObject {
         // Sync savings goals (iPad optimized with background queue)
         for saving in savings {
             group.enter()
+            let savingTitle = saving.title
+            let savingCategory = saving.category
+            let savingGoalType = saving.goalType
+            let savingTargetAmount = saving.targetAmount
+            let savingCurrentAmount = saving.currentAmount
+            let savingTargetDate = saving.targetDate
+            let savingNotes = saving.notes
+            let savingCreatedAt = saving.createdAt
+            let savingUpdatedAt = saving.updatedAt
+            
             syncQueue.async {
-                self.saveSavingToCloudKit(saving) { success, error in
+                // Create a temporary savings goal object for syncing
+                let tempSaving = SavingsGoal(
+                    title: savingTitle,
+                    category: savingCategory,
+                    goalType: savingGoalType,
+                    targetAmount: savingTargetAmount,
+                    currentAmount: savingCurrentAmount,
+                    targetDate: savingTargetDate,
+                    notes: savingNotes
+                )
+                tempSaving.createdAt = savingCreatedAt
+                tempSaving.updatedAt = savingUpdatedAt
+                
+                self.saveSavingToCloudKit(tempSaving) { success, error in
                     if success {
                         savingsSynced += 1
-                        print("✅ Synced savings goal: \(saving.title)")
+                        print("✅ Synced savings goal: \(savingTitle)")
                     } else if let error = error {
                         syncErrors.append(error)
-                        print("❌ Failed to sync savings goal \(saving.title): \(error.localizedDescription)")
+                        print("❌ Failed to sync savings goal \(savingTitle): \(error.localizedDescription)")
+                    }
+                    group.leave()
+                }
+            }
+        }
+        
+        // Sync user settings if provided
+        if let userSettings = userSettings {
+            group.enter()
+            syncQueue.async {
+                self.saveUserSettingsToCloudKit(userSettings) { success, error in
+                    if success {
+                        print("✅ Synced user settings to CloudKit")
+                    } else if let error = error {
+                        syncErrors.append(error)
+                        print("❌ Failed to sync user settings: \(error.localizedDescription)")
                     }
                     group.leave()
                 }
@@ -471,7 +728,8 @@ class CloudKitManager: ObservableObject {
         }
         
         group.notify(queue: .main) { [weak self] in
-            self?._isSyncing = false
+            self?.isSyncing = false
+            
             if syncErrors.isEmpty {
                 print("✅ CloudKit sync completed successfully: \(billsSynced) bills, \(savingsSynced) savings goals")
                 self?.lastSyncDate = Date()
@@ -490,13 +748,17 @@ class CloudKitManager: ObservableObject {
     /// - Parameters:
     ///   - bills: Array of local bills
     ///   - savings: Array of local savings goals
-    ///   - modelContext: SwiftData context for merging
+    ///   - userSettings: User settings to sync
+    ///   - modelContext: SwiftData model context
     ///   - completion: Completion handler with sync result
-    func performFullSync(bills: [BillItem], savings: [SavingsGoal], modelContext: ModelContext, completion: @escaping (Bool, Error?) -> Void) {
+    func performFullSync(bills: [BillItem], savings: [SavingsGoal], userSettings: UserSettings?, modelContext: ModelContext, completion: @escaping (Bool, Error?) -> Void) {
         print("🔄 Starting full bidirectional sync...")
+        print("📊 Local bills count: \(bills.count)")
+        print("🎯 Local savings count: \(savings.count)")
+        print("🌐 Network: \(NetworkMonitor.shared.isConnected ? "Connected" : "Disconnected")")
         
         // First, upload local data to CloudKit
-        syncAllDataToCloudKit(bills: bills, savings: savings) { [weak self] uploadSuccess, uploadError in
+        syncAllDataToCloudKit(bills: bills, savings: savings, userSettings: userSettings) { [weak self] uploadSuccess, uploadError in
             if uploadSuccess {
                 print("✅ Local data uploaded successfully, now downloading remote data...")
                 
@@ -529,7 +791,7 @@ class CloudKitManager: ObservableObject {
         
         // Fetch bills
         group.enter()
-        fetchBillsFromCloudKit { [weak self] remoteBills, error in
+        fetchBillsFromCloudKit { remoteBills, error in
             if let error = error {
                 mergeErrors.append(error)
                 print("❌ Failed to fetch remote bills: \(error.localizedDescription)")
@@ -542,13 +804,27 @@ class CloudKitManager: ObservableObject {
         
         // Fetch savings
         group.enter()
-        fetchSavingsFromCloudKit { [weak self] remoteSavings, error in
+        fetchSavingsFromCloudKit { remoteSavings, error in
             if let error = error {
                 mergeErrors.append(error)
                 print("❌ Failed to fetch remote savings: \(error.localizedDescription)")
             } else if let remoteSavings = remoteSavings {
                 print("📥 Fetched \(remoteSavings.count) remote savings goals")
                 // TODO: Implement merge logic for savings
+            }
+            group.leave()
+        }
+        
+        // Fetch user settings
+        group.enter()
+        fetchUserSettingsFromCloudKit { remoteUserSettings, error in
+            if let error = error {
+                mergeErrors.append(error)
+                print("❌ Failed to fetch remote user settings: \(error.localizedDescription)")
+            } else if let remoteUserSettings = remoteUserSettings {
+                print("📥 Fetched remote user settings: Income $\(remoteUserSettings.monthlyIncome), Budget $\(remoteUserSettings.monthlyBudget)")
+                // Merge user settings
+                self.mergeUserSettings(remoteUserSettings, modelContext: modelContext)
             }
             group.leave()
         }
@@ -597,6 +873,63 @@ class CloudKitManager: ObservableObject {
     }
     
     // MARK: - Merge Operations
+    
+    /// Merge user settings from CloudKit with local settings
+    /// - Parameters:
+    ///   - remoteSettings: UserSettings from CloudKit
+    ///   - modelContext: SwiftData model context
+    private func mergeUserSettings(_ remoteSettings: UserSettings, modelContext: ModelContext) {
+        print("🔄 Merging user settings...")
+        
+        do {
+            // Fetch local user settings
+            let localSettings = try modelContext.fetch(FetchDescriptor<UserSettings>())
+            
+            if let localSetting = localSettings.first {
+                // Update local settings with remote values if remote is newer
+                if remoteSettings.updatedAt > localSetting.updatedAt {
+                    print("📥 Updating local user settings with remote values")
+                    localSetting.monthlyIncome = remoteSettings.monthlyIncome
+                    localSetting.monthlyBudget = remoteSettings.monthlyBudget
+                    localSetting.notificationsEnabled = remoteSettings.notificationsEnabled
+                    localSetting.darkModeEnabled = remoteSettings.darkModeEnabled
+                    localSetting.updatedAt = Date()
+                    
+                    try modelContext.save()
+                    print("✅ User settings merged successfully")
+                    
+                    // Post notification to update UI
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(name: .cloudKitDataChanged, object: nil)
+                    }
+                } else {
+                    print("ℹ️ Local user settings are up to date")
+                }
+            } else {
+                // No local settings exist, create new ones
+                print("📥 Creating new local user settings from CloudKit")
+                let newSettings = UserSettings(
+                    monthlyBudget: remoteSettings.monthlyBudget,
+                    monthlyIncome: remoteSettings.monthlyIncome,
+                    notificationsEnabled: remoteSettings.notificationsEnabled,
+                    darkModeEnabled: remoteSettings.darkModeEnabled
+                )
+                newSettings.createdAt = remoteSettings.createdAt
+                newSettings.updatedAt = remoteSettings.updatedAt
+                
+                modelContext.insert(newSettings)
+                try modelContext.save()
+                print("✅ New user settings created from CloudKit")
+                
+                // Post notification to update UI
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .cloudKitDataChanged, object: nil)
+                }
+            }
+        } catch {
+            print("❌ Failed to merge user settings: \(error.localizedDescription)")
+        }
+    }
     
     /// Merge fetched CloudKit data with local SwiftData
     /// - Parameters:
@@ -960,4 +1293,14 @@ class CloudKitManager: ObservableObject {
         
         return min(score, 100)
     }
+}
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    /// Notification sent when CloudKit sync is requested
+    static let cloudKitSyncRequested = Notification.Name("cloudKitSyncRequested")
+    
+    /// Notification sent when CloudKit data has changed
+    static let cloudKitDataChanged = Notification.Name("cloudKitDataChanged")
 } 

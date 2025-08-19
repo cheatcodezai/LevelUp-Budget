@@ -107,9 +107,26 @@ struct SavingsView: View {
                 performFullSync()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .cloudKitSyncRequested)) { _ in
+            // Auto-sync when requested
+            if cloudKitManager.isCloudKitAvailable {
+                performFullSync()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cloudKitDataChanged)) { _ in
+            // Sync when CloudKit data changes
+            if cloudKitManager.isCloudKitAvailable {
+                performFullSync()
+            }
+        }
         #if os(iOS)
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             searchManager.reset()
+            
+            // Sync when app becomes active
+            if cloudKitManager.isCloudKitAvailable {
+                performFullSync()
+            }
         }
         #endif
         .onChange(of: tabStateManager.currentTab) { oldValue, newValue in
@@ -435,8 +452,11 @@ extension SavingsView {
             return goal.title.count > 0 && goal.targetAmount > 0
         }
         
+        // Get user settings for sync
+        let userSettings = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first
+        
         // Perform full bidirectional sync
-        cloudKitManager.performFullSync(bills: [], savings: validSavingsGoals, modelContext: modelContext) { success, error in
+        cloudKitManager.performFullSync(bills: [], savings: validSavingsGoals, userSettings: userSettings, modelContext: modelContext) { success, error in
             if success {
                 print("✅ Full sync completed successfully for savings goals")
             } else if let error = error {

@@ -124,6 +124,10 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity)
                 .background(Color.black)
                 .navigationTitle("")
+                .onReceive(NotificationCenter.default.publisher(for: .cloudKitDataChanged)) { _ in
+                    // Refresh the view when CloudKit data changes
+                    print("🔄 SettingsView received CloudKit data change notification")
+                }
                 #if os(macOS)
                 .frame(minWidth: 700, minHeight: 500)
                 #endif
@@ -274,14 +278,13 @@ struct BrandHeaderView: View {
 // MARK: - Monthly Budget Section with Visual Aids
 struct MonthlyBudgetSection: View {
     let settings: UserSettings
-    @State private var incomeValue: Double
     @State private var isEditingIncome = false
     @State private var showingCustomIncomeInput = false
     @State private var customIncomeValue: String = ""
     
-    init(settings: UserSettings) {
-        self.settings = settings
-        self._incomeValue = State(initialValue: settings.monthlyIncome)
+    // Computed property that updates when settings change
+    private var incomeValue: Double {
+        settings.monthlyIncome
     }
     
     var body: some View {
@@ -342,15 +345,26 @@ struct MonthlyBudgetSection: View {
                     // Simplified macOS slider
                     VStack(spacing: 12) {
                         // Interactive Slider with hover effects
-                        Slider(value: $incomeValue, in: 1000...20000, step: 500)
-                            .accentColor(Color(red: 0, green: 1, blue: 0.4))
-                            .padding(.horizontal, 20)
-                            .onChange(of: incomeValue) { oldValue, newValue in
+                        Slider(value: Binding(
+                            get: { settings.monthlyIncome },
+                            set: { newValue in
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                     settings.monthlyIncome = newValue
                                     settings.updatedAt = Date()
+                                    
+                                    // Sync to CloudKit
+                                    CloudKitManager.shared.saveUserSettingsToCloudKit(settings) { success, error in
+                                        if success {
+                                            print("✅ Monthly income synced to CloudKit: $\(newValue)")
+                                        } else if let error = error {
+                                            print("❌ Failed to sync monthly income: \(error.localizedDescription)")
+                                        }
+                                    }
                                 }
                             }
+                        ), in: 1000...20000, step: 500)
+                            .accentColor(Color(red: 0, green: 1, blue: 0.4))
+                            .padding(.horizontal, 20)
                             .onHover { hovering in
                                 // Hover effect for slider thumb
                                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -387,15 +401,26 @@ struct MonthlyBudgetSection: View {
                     #else
                     // iOS slider implementation
                     VStack(spacing: 12) {
-                        Slider(value: $incomeValue, in: 1000...20000, step: 500)
-                            .accentColor(Color(red: 0, green: 1, blue: 0.4))
-                            .padding(.horizontal, 20)
-                            .onChange(of: incomeValue) { oldValue, newValue in
+                        Slider(value: Binding(
+                            get: { settings.monthlyIncome },
+                            set: { newValue in
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                     settings.monthlyIncome = newValue
                                     settings.updatedAt = Date()
+                                    
+                                    // Sync to CloudKit
+                                    CloudKitManager.shared.saveUserSettingsToCloudKit(settings) { success, error in
+                                        if success {
+                                            print("✅ Monthly income synced to CloudKit: $\(newValue)")
+                                        } else if let error = error {
+                                            print("❌ Failed to sync monthly income: \(error.localizedDescription)")
+                                        }
+                                    }
                                 }
                             }
+                        ), in: 1000...20000, step: 500)
+                            .accentColor(Color(red: 0, green: 1, blue: 0.4))
+                            .padding(.horizontal, 20)
                         
                         // Tick markers for iOS
                         HStack {
@@ -454,9 +479,17 @@ struct MonthlyBudgetSection: View {
             Button("Set Income") {
                 if let newValue = Double(customIncomeValue), newValue >= 1000 {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        incomeValue = newValue
                         settings.monthlyIncome = newValue
                         settings.updatedAt = Date()
+                        
+                        // Sync to CloudKit
+                        CloudKitManager.shared.saveUserSettingsToCloudKit(settings) { success, error in
+                            if success {
+                                print("✅ Monthly income synced to CloudKit: $\(newValue)")
+                            } else if let error = error {
+                                print("❌ Failed to sync monthly income: \(error.localizedDescription)")
+                            }
+                        }
                     }
                 }
             }
@@ -468,15 +501,13 @@ struct MonthlyBudgetSection: View {
 
 // MARK: - Income Edit View
 struct IncomeEditView: View {
-    @Binding var incomeValue: Double
     let settings: UserSettings
     @Environment(\.dismiss) private var dismiss
     @State private var tempIncomeValue: String
     
-    init(incomeValue: Binding<Double>, settings: UserSettings) {
-        self._incomeValue = incomeValue
+    init(settings: UserSettings) {
         self.settings = settings
-        self._tempIncomeValue = State(initialValue: String(format: "%.0f", incomeValue.wrappedValue))
+        self._tempIncomeValue = State(initialValue: String(format: "%.0f", settings.monthlyIncome))
     }
     
     var body: some View {
@@ -501,9 +532,18 @@ struct IncomeEditView: View {
                 
                 Button("Save Income") {
                     if let newValue = Double(tempIncomeValue), newValue > 0 {
-                        incomeValue = newValue
                         settings.monthlyIncome = newValue
                         settings.updatedAt = Date()
+                        
+                        // Sync to CloudKit
+                        CloudKitManager.shared.saveUserSettingsToCloudKit(settings) { success, error in
+                            if success {
+                                print("✅ Monthly income synced to CloudKit: $\(newValue)")
+                            } else if let error = error {
+                                print("❌ Failed to sync monthly income: \(error.localizedDescription)")
+                            }
+                        }
+                        
                         dismiss()
                     }
                 }
@@ -571,6 +611,11 @@ struct AppPreferencesSection: View {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 settings.notificationsEnabled = newValue
                                 settings.updatedAt = Date()
+                                
+                                // Request notification permission if enabling
+                                if newValue {
+                                    NotificationManager.shared.requestPermission()
+                                }
                             }
                         }
                     ))
@@ -582,6 +627,55 @@ struct AppPreferencesSection: View {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(Color.gray.opacity(0.08))
                 )
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+                
+                // Notification Status
+                NotificationStatusRow()
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
+                
+                // Test Notification Button
+                Button(action: {
+                    NotificationManager.shared.sendTestNotification()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bell.badge")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("Test Notification")
+                            .font(.subheadline.bold())
+                    }
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.orange.opacity(0.1))
+                    )
+                }
+                .disabled(!NotificationManager.shared.isPushNotificationsEnabled)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+                
+                // Manual CloudKit Sync Button
+                Button(action: {
+                    CloudKitManager.shared.requestSync()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("Manual CloudKit Sync")
+                            .font(.subheadline.bold())
+                    }
+                    .foregroundColor(.green)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.green.opacity(0.1))
+                    )
+                }
+                .disabled(!CloudKitManager.shared.isCloudKitAvailable)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 16)
             }
@@ -1128,6 +1222,36 @@ struct FeedbackSection: View {
                     .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(PlainButtonStyle())
+                
+                // Manual CloudKit Sync Button
+                Button(action: {
+                    CloudKitManager.shared.requestSync()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Manual CloudKit Sync")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.0, green: 0.8, blue: 0.4), // Green
+                                Color(red: 0.2, green: 1.0, blue: 0.6)  // Light Green
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(!CloudKitManager.shared.isCloudKitAvailable)
             }
             .padding(.horizontal, 20)
             
@@ -1402,6 +1526,65 @@ struct SubmitButtonStyle: ButtonStyle {
             )
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+} 
+
+// MARK: - Notification Status Row
+
+struct NotificationStatusRow: View {
+    @StateObject private var notificationManager = NotificationManager.shared
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "info.circle")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.blue.opacity(0.7))
+                .frame(width: 20)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Status")
+                    .font(.subheadline.bold())
+                    .foregroundColor(.white)
+                
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(notificationManager.isPushNotificationsEnabled ? .green : .red)
+                        .frame(width: 8, height: 8)
+                    
+                    Text(notificationManager.isPushNotificationsEnabled ? "Enabled" : "Disabled")
+                        .font(.footnote)
+                        .foregroundColor(.gray.opacity(0.8))
+                    
+                    if notificationManager.pendingNotificationsCount > 0 {
+                        Text("• \(notificationManager.pendingNotificationsCount) scheduled")
+                            .font(.footnote)
+                            .foregroundColor(.blue.opacity(0.8))
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            if !notificationManager.isPushNotificationsEnabled {
+                Button("Enable") {
+                    notificationManager.requestPermission()
+                }
+                .font(.caption)
+                .foregroundColor(.blue)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.blue.opacity(0.1))
+                )
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.gray.opacity(0.08))
+        )
     }
 } 
 

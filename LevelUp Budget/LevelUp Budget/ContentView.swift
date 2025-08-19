@@ -262,6 +262,10 @@ struct MainDashboardView: View {
                     )
                     .frame(maxWidth: 800)
                     
+                    // Sync Status Card
+                    SyncStatusCard()
+                        .frame(maxWidth: 800)
+                    
                     // Bills Summary Section
                     BillsSummarySection(bills: bills)
                         .frame(maxWidth: 800)
@@ -283,15 +287,54 @@ struct MainDashboardView: View {
         }
         .navigationTitle("")
         .toolbar {
-            // Removed duplicate plus button - individual views have their own functional plus buttons
+            // Add sync button to toolbar - use primaryAction for macOS compatibility
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: {
+                    CloudKitManager.shared.requestSync()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("Sync")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(Color(red: 0, green: 1, blue: 0.4))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.black.opacity(0.3))
+                    .cornerRadius(8)
+                }
+                .disabled(!CloudKitManager.shared.isCloudKitAvailable)
+            }
         }
         .onAppear {
             // Rotate quote every hour
             let hour = Calendar.current.component(.hour, from: Date())
             currentQuoteIndex = hour % motivationalQuotes.count
+            
+            // Trigger sync when dashboard appears
+            if CloudKitManager.shared.isCloudKitAvailable {
+                CloudKitManager.shared.requestSync()
+            }
         }
+        #if os(iOS)
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            // Sync when app becomes active
+            if CloudKitManager.shared.isCloudKitAvailable {
+                CloudKitManager.shared.requestSync()
+            }
+        }
+        #else
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            // Sync when app becomes active
+            if CloudKitManager.shared.isCloudKitAvailable {
+                CloudKitManager.shared.requestSync()
+            }
+        }
+        #endif
     }
 }
+
 
 struct BudgetProgressCard: View {
     let totalBills: Double
@@ -859,6 +902,98 @@ struct FilteredBillRow: View {
         } else {
             return .gray.opacity(0.8)
         }
+    }
+}
+
+// MARK: - Sync Status Card
+
+struct SyncStatusCard: View {
+    @StateObject private var cloudKitManager = CloudKitManager.shared
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "icloud")
+                    .foregroundColor(.blue)
+                
+                Text("iCloud Sync Status")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                // Sync status indicator
+                HStack(spacing: 8) {
+                    if cloudKitManager.isSyncing {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                    } else if cloudKitManager.isCloudKitAvailable {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                    } else {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                    }
+                    
+                    Text(cloudKitManager.isSyncing ? "Syncing..." : 
+                         cloudKitManager.isCloudKitAvailable ? "Connected" : "Disconnected")
+                        .font(.caption)
+                        .foregroundColor(cloudKitManager.isSyncing ? .blue : 
+                                        cloudKitManager.isCloudKitAvailable ? .green : .orange)
+                }
+            }
+            
+            if let lastSync = cloudKitManager.lastSyncDate {
+                Text("Last synced: \(lastSync, style: .relative) ago")
+                    .font(.caption)
+                    .foregroundColor(.gray.opacity(0.8))
+            }
+            
+            if let error = cloudKitManager.syncError {
+                Text("Error: \(error)")
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
+            
+            // Manual sync button
+            Button(action: {
+                cloudKitManager.requestSync()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Text("Sync Now")
+                }
+                .font(.caption)
+                .foregroundColor(.blue)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(8)
+            }
+            .disabled(!cloudKitManager.isCloudKitAvailable || cloudKitManager.isSyncing)
+            
+            // Test notification button
+            Button(action: {
+                NotificationManager.shared.sendTestNotification()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "bell.badge")
+                    Text("Test Notification")
+                }
+                .font(.caption)
+                .foregroundColor(.orange)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(8)
+            }
+            .disabled(!NotificationManager.shared.isPushNotificationsEnabled)
+        }
+        .padding()
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
     }
 }
 

@@ -405,19 +405,22 @@ struct BillFormView: View {
             existingBill.endDate = finalEndDate
             existingBill.updatedAt = Date()
             
-            // Sync updated bill to CloudKit (macOS only)
-            #if os(macOS)
+            // Sync updated bill to CloudKit (all platforms)
             CloudKitManager.shared.saveBillToCloudKit(existingBill) { success, error in
                 if success {
                     print("✅ Updated bill synced to CloudKit: \(existingBill.title)")
+                    // Notify that data has changed to trigger sync
+                    NotificationCenter.default.post(name: .cloudKitDataChanged, object: nil)
                 } else if let error = error {
                     print("❌ Failed to sync updated bill to CloudKit: \(error.localizedDescription)")
                 }
             }
-            #endif
             
             // Schedule notification for updated bill
             NotificationManager.shared.scheduleBillReminder(for: existingBill)
+            
+            // Also schedule for all bills to ensure consistency
+            NotificationManager.shared.scheduleNotificationsForAllBills()
         } else {
             // Create new bill
             let newBill = BillItem(
@@ -433,19 +436,22 @@ struct BillFormView: View {
             )
             modelContext.insert(newBill)
             
-            // Sync new bill to CloudKit (macOS only)
-            #if os(macOS)
+            // Sync new bill to CloudKit (all platforms)
             CloudKitManager.shared.saveBillToCloudKit(newBill) { success, error in
                 if success {
                     print("✅ New bill synced to CloudKit: \(newBill.title)")
+                    // Notify that data has changed to trigger sync
+                    NotificationCenter.default.post(name: .cloudKitDataChanged, object: nil)
                 } else if let error = error {
                     print("❌ Failed to sync new bill to CloudKit: \(error.localizedDescription)")
                 }
             }
-            #endif
             
             // Schedule notification for new bill
             NotificationManager.shared.scheduleBillReminder(for: newBill)
+            
+            // Also schedule for all bills to ensure consistency
+            NotificationManager.shared.scheduleNotificationsForAllBills()
         }
         
         dismiss()

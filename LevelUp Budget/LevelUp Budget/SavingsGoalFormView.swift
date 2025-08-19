@@ -323,16 +323,19 @@ struct SavingsGoalFormView: View {
             existingGoal.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
             existingGoal.updatedAt = Date()
             
-            // Sync updated goal to CloudKit (macOS only)
-            #if os(macOS)
+            // Sync updated goal to CloudKit (all platforms)
             CloudKitManager.shared.saveSavingToCloudKit(existingGoal) { success, error in
                 if success {
                     print("✅ Updated savings goal synced to CloudKit: \(existingGoal.title)")
+                    // Notify that data has changed to trigger sync
+                    NotificationCenter.default.post(name: .cloudKitDataChanged, object: nil)
                 } else if let error = error {
                     print("❌ Failed to sync updated savings goal to CloudKit: \(error.localizedDescription)")
                 }
             }
-            #endif
+            
+            // Schedule notification for updated savings goal
+            NotificationManager.shared.scheduleSavingsGoalNotification(for: existingGoal)
         } else {
             // Create new goal
             let newGoal = SavingsGoal(
@@ -346,16 +349,19 @@ struct SavingsGoalFormView: View {
             )
             modelContext.insert(newGoal)
             
-            // Sync new goal to CloudKit (macOS only)
-            #if os(macOS)
+            // Sync new goal to CloudKit (all platforms)
             CloudKitManager.shared.saveSavingToCloudKit(newGoal) { success, error in
                 if success {
                     print("✅ New savings goal synced to CloudKit: \(newGoal.title)")
+                    // Notify that data has changed to trigger sync
+                    NotificationCenter.default.post(name: .cloudKitDataChanged, object: nil)
                 } else if let error = error {
                     print("❌ Failed to sync new savings goal to CloudKit: \(error.localizedDescription)")
                 }
             }
-            #endif
+            
+            // Schedule notification for new savings goal
+            NotificationManager.shared.scheduleSavingsGoalNotification(for: newGoal)
         }
         
         dismiss()

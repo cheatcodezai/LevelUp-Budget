@@ -108,10 +108,30 @@ struct BillsListView: View {
             if cloudKitManager.isCloudKitAvailable {
                 performFullSync()
             }
+            
+            // Schedule notifications for all bills
+            NotificationManager.shared.scheduleNotificationsForBills(bills)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cloudKitSyncRequested)) { _ in
+            // Auto-sync when requested
+            if cloudKitManager.isCloudKitAvailable {
+                performFullSync()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cloudKitDataChanged)) { _ in
+            // Sync when CloudKit data changes
+            if cloudKitManager.isCloudKitAvailable {
+                performFullSync()
+            }
         }
         #if os(iOS)
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             searchManager.reset()
+            
+            // Sync when app becomes active
+            if cloudKitManager.isCloudKitAvailable {
+                performFullSync()
+            }
         }
         #endif
         .onChange(of: tabStateManager.currentTab) { oldValue, newValue in
@@ -453,8 +473,11 @@ extension BillsListView {
             return bill.title.count > 0 && bill.amount > 0
         }
         
+        // Get user settings for sync
+        let userSettings = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first
+        
         // Perform full bidirectional sync
-        cloudKitManager.performFullSync(bills: validBills, savings: [], modelContext: modelContext) { success, error in
+        cloudKitManager.performFullSync(bills: validBills, savings: [], userSettings: userSettings, modelContext: modelContext) { success, error in
             if success {
                 print("✅ Full sync completed successfully for bills")
             } else if let error = error {
